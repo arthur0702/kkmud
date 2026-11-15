@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>萬王之王 MUD 圖形用戶端</title>
+<style>
+  :root { --bg: #0e1013; --panel: #171a1f; --panel2: #20242b; --line: #2c313a; --text: #d9dde4; --dim: #8791a0; --accent: #e0a23c; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.45 "Segoe UI", "Microsoft JhengHei", sans-serif;
+         display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header b { font-size: 14px; letter-spacing: .04em; margin-right: 6px; }
+  button, select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 4px 10px; font: inherit; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--accent); }
+  #state { color: var(--dim); } #state.on { color: #7fd48a; }
+  header label { color: var(--dim); display: flex; align-items: center; gap: 5px; }
+  header input[type=checkbox] { accent-color: var(--accent); margin: 0; }
+  .grow { flex: 1; }
+
+  .view { position: relative; min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: #0b0c0f; }
+  #gl { display: block; width: 100%; height: 100%; }
+  #overlay { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  #overlay > * { pointer-events: auto; position: absolute; left: 0; top: 0; }
+  .tag { padding: 1px 7px; border-radius: 9px; background: #000a; border: 1px solid #fff2; white-space: nowrap; cursor: pointer; font-size: 12px; }
+  .tag.monster { color: #ff9a8f; } .tag.person { color: #cfe3ff; } .tag.item { color: #ffe08a; }
+  .tag:hover { border-color: var(--accent); }
+  .tag.corpse { color: #d9c7a8; }
+  .tag.hurt { background: linear-gradient(90deg, #7a1f1fd0 var(--hp, 100%), #000a var(--hp, 100%)); }
+  .tag.dead { color: #8791a0; text-decoration: line-through; }
+  #menu { position: absolute; z-index: 5; display: flex; gap: 4px; padding: 4px; background: #171a1fee; border: 1px solid var(--accent); border-radius: 7px; box-shadow: 0 4px 14px #000a; }
+  #menu button { white-space: nowrap; }
+  .panel { position: absolute; z-index: 4; left: 12px; bottom: 54px; width: min(360px, calc(100% - 24px)); max-height: 60%; display: flex; flex-direction: column;
+          background: #171a1ff2; border: 1px solid #8a6a2a; border-radius: 8px; box-shadow: 0 6px 18px #000a; }
+  .panel[hidden] { display: none; }
+  .panel .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 10px; border-bottom: 1px solid var(--line); color: #ffe2a3; }
+  .panel .head button { padding: 0 7px; border: 0; background: transparent; color: var(--dim); }
+  .panel .rows { overflow-y: auto; padding: 4px; }
+  .panel .row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 5px; }
+  .panel .row:hover { background: var(--panel2); }
+  .panel .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel .pr { color: #ffd75e; font-variant-numeric: tabular-nums; }
+  .panel .row button { padding: 2px 9px; white-space: nowrap; }
+  .panel .row button.ghost { color: var(--dim); }
+  #inv { left: auto; right: 12px; width: min(400px, calc(100% - 24px)); border-color: #4e6f8a; }
+  #inv .head b { color: #bfe0ff; }
+  #inv .load { color: var(--dim); font-size: 12px; font-weight: normal; margin-left: auto; }
+  #inv .sect { padding: 6px 6px 2px; color: var(--dim); font-size: 12px; }
+  #inv .used .nm { color: #9fe6a8; }
+  #inv .used .nm::before { content: '✓ '; }
+  #board { width: min(620px, calc(100% - 24px)); max-height: 72%; border-color: #6f5a8a; }
+  #board .head b { color: #e2cfff; }
+  #board .load, #postBy { color: var(--dim); font-size: 12px; font-weight: normal; margin-left: auto; }
+  #board .row { cursor: pointer; }
+  #board .no { color: #ffd75e; font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: right; }
+  #board .by { color: var(--dim); font-size: 12px; white-space: nowrap; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+  #board .read .nm, #board .read .no { color: var(--dim); }
+  #board .re .nm { padding-left: 1em; }
+  #boardPost { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  #boardPost[hidden] { display: none; }
+  #boardPost .ph { display: flex; gap: 8px; align-items: baseline; padding: 8px 10px 4px; }
+  #postBody { flex: 1; overflow-y: auto; margin: 0 4px; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; line-height: 1.55;
+              background: #0f1115; border-radius: 5px; font-family: inherit; }
+  #postBody .q { color: #8fb9a8; }
+  #boardPost .nav { display: flex; gap: 6px; padding: 6px; }
+  #boardPost .nav .grow { flex: 1; }
+  #shopMore { margin: 4px; background: #2a2413; border-color: #8a6a2a; color: #ffe2a3; }
+  .exit { min-width: 34px; padding: 3px 8px; border-radius: 14px; background: #1b2a1dcc; border-color: #4e8a57; color: #c9f2cf; font-weight: 600; }
+  .exit.side { position: static !important; transform: none !important; }
+  .hud { position: absolute; left: 12px; top: 10px; right: 190px; pointer-events: none; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
+  #roomName { font-size: 17px; font-weight: 600; color: #ffe2a3; }
+  #roomDesc { color: #c3c9d3; max-height: 4.4em; overflow: hidden; max-width: 60ch; }
+  #roomCmds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; pointer-events: auto; text-shadow: none; }
+  #roomCmds button { padding: 2px 9px; border-radius: 12px; background: #2a2413dd; border-color: #8a6a2a; color: #ffe2a3; }
+  #roomCmds button.noun { background: #18222edd; border-color: #3f5f86; color: #cfe3ff; }
+  #roomCmds button:hover { border-color: var(--accent); }
+  .bars { position: absolute; left: 12px; bottom: 10px; display: grid; gap: 4px; width: 190px; }
+  .bar { position: relative; height: 15px; background: #0009; border: 1px solid #fff2; border-radius: 4px; overflow: hidden; }
+  .bar i { position: absolute; inset: 0 auto 0 0; background: #b8433c; } #mp i { background: #3c6fb8; }
+  .bar span { position: absolute; inset: 0; font-size: 11px; line-height: 13px; text-align: center; }
+  .mapbox { position: absolute; right: 10px; top: 10px; background: #000a; border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
+  #map { display: block; width: 168px; height: 168px; cursor: zoom-in; }
+  #mapInfo { color: var(--dim); font-size: 11px; text-align: center; }
+  #sideExits { display: flex; flex-wrap: wrap; gap: 4px; max-width: 168px; justify-content: center; }
+  #sideExits:not(:empty) { margin-top: 4px; }
+
+  .console { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #0b0c0f; }
+  #term { flex: 1; overflow-y: auto; padding: 8px 10px; font: 14px/1.35 "MingLiU", "細明體", "NSimSun", "Consolas", monospace; white-space: pre-wrap; word-break: break-all; color: #c8ccd4; }
+  .ln { min-height: 1.35em; }
+  #quick { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; padding: 5px 6px; border-top: 1px solid var(--line); background: var(--panel); }
+  #quick button { min-width: 0; padding: 4px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  #quick button.empty { color: var(--dim); border-style: dashed; background: transparent; }
+  #quick button.ran { border-color: var(--accent); }
+  #quickList .key { color: var(--dim); font: 12px Consolas, monospace; align-self: center; }
+  @media (max-width: 560px) { #quick { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .inp { display: flex; border-top: 1px solid var(--line); background: var(--panel); }
+  #cmd { flex: 1; background: transparent; border: 0; outline: none; color: #fff; padding: 9px 10px; font: 14px "MingLiU", "Consolas", monospace; }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 0; width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 40px); }
+  dialog::backdrop { background: #000a; }
+  #setForm { display: flex; flex-direction: column; max-height: calc(100vh - 42px); }
+  .dhead, .dfoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; }
+  .dhead { border-bottom: 1px solid var(--line); } .dfoot { border-top: 1px solid var(--line); }
+  .dhead .x { border: 0; background: transparent; color: var(--dim); }
+  .tabs { display: flex; gap: 4px; padding: 8px 14px 0; }
+  .tabs button { border-radius: 6px 6px 0 0; border-bottom: 0; color: var(--dim); }
+  .tabs button.on { color: #ffe2a3; border-color: var(--accent); background: #2a2413; }
+  .pane { padding: 12px 14px; overflow-y: auto; display: grid; gap: 9px; border-top: 1px solid var(--line); }
+  .pane label { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 8px; color: var(--dim); }
+  .pane label.chk { display: flex; color: var(--text); }
+  .pane input:not([type=checkbox]) { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; font: inherit; min-width: 0; }
+  .pane input:focus { outline: none; border-color: var(--accent); }
+  .pane input[type=checkbox] { accent-color: var(--accent); }
+  .note { color: var(--dim); font-size: 12px; margin: 0; } .note code { color: #ffe2a3; }
+  .rowbtn { display: flex; gap: 8px; flex-wrap: wrap; }
+  .danger { color: #ff9a8f; } .primary { background: #3a2f1a; border-color: var(--accent); color: #ffe2a3; }
+  .list { display: grid; gap: 5px; }
+  .item-row { display: flex; gap: 6px; align-items: center; }
+  .item-row input.w-s { width: 70px; flex: none; } .item-row input.w-m { width: 150px; flex: none; } .item-row input.w-l { flex: 1; }
+  .item-row label { display: flex; grid-template-columns: none; gap: 3px; white-space: nowrap; font-size: 12px; }
+  .item-row button { padding: 2px 8px; color: var(--dim); }
+  details summary { cursor: pointer; color: var(--dim); } details label { margin-top: 8px; }
+  #mapDlg { width: min(1200px, calc(100vw - 24px)); height: min(860px, calc(100vh - 24px)); max-height: none; }
+  .mapwin { display: flex; flex-direction: column; height: 100%; }
+  .mapwin .dhead, .mapwin .dfoot { flex-wrap: wrap; }
+  .mapwin .dhead input:not([type=checkbox]) { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; font: inherit; width: 160px; }
+  .mapwin label.chk { display: flex; align-items: center; gap: 5px; color: var(--dim); white-space: nowrap; }
+  .mapwin label.chk input { accent-color: var(--accent); margin: 0; }
+  #mapBig { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; background: #0e1013; touch-action: none; }
+  #mapBig:active { cursor: grabbing; }
+  #mapHover { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+  ::-webkit-scrollbar { width: 9px; } ::-webkit-scrollbar-thumb { background: #3a404b; border-radius: 5px; }
+  @media (max-width: 860px) { body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); } .view { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "/assets/viewer/vendor/three/build/three.module.js", "three/addons/": "/assets/viewer/vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<header>
+  <b>萬王之王 MUD 圖形用戶端</b>
+  <button id="conn">連線</button>
+  <span id="state">未連線</span>
+  <span class="grow"></span>
+  <label>帳號 <select id="profile" title="切換帳號（每個帳號各自連線）"></select></label>
+  <button id="openSettings" title="帳號、自動登入、別名、觸發、定時">設定</button>
+  <label>角色外觀 <select id="model"></select></label>
+  <label><input id="bgm" type="checkbox"> 背景音樂</label>
+  <button id="lookBtn" title="送出 look，重新讀取這個房間（數字鍵盤 5）">查看四周</button>
+  <button id="invBtn" title="送出 i，打開背包（數字鍵盤 0）">背包</button>
+  <button id="boardBtn" hidden>留言板</button>
+  <button id="demo" title="用內建的示範文字預覽圖形畫面，不會連線">示範</button>
+</header>
+
+<section class="view" id="view">
+  <canvas id="gl"></canvas>
+  <div id="overlay"></div>
+  <div class="hud"><div id="roomName"></div><div id="roomDesc"></div><div id="roomCmds"></div></div>
+  <div class="mapbox"><canvas id="map" width="168" height="168"></canvas><div id="mapInfo"></div><div id="sideExits"></div></div>
+  <div id="menu" hidden></div>
+  <div id="shop" class="panel" hidden>
+    <div class="head"><b id="shopTitle">商品清單</b><button id="shopClose" title="關閉">✕</button></div>
+    <div id="shopRows" class="rows"></div>
+    <button id="shopMore" hidden></button>
+  </div>
+  <div id="inv" class="panel" hidden>
+    <div class="head"><b id="invTitle">背包</b><span class="load" id="invLoad"></span><button id="invRefresh" title="送出 i，重新讀取背包">↻</button><button id="invClose" title="關閉">✕</button></div>
+    <div id="invRows" class="rows"></div>
+  </div>
+  <div id="board" class="panel" hidden>
+    <div class="head"><b id="boardTitle">留言板</b><span class="load" id="boardInfo"></span>
+      <button id="boardNew" title="送出 read new，讀第一篇未讀的留言">讀新留言</button><button id="boardRefresh" title="重新讀取留言列表">↻</button><button id="boardClose" title="關閉">✕</button></div>
+    <div id="boardRows" class="rows"></div>
+    <div id="boardPost" hidden>
+      <div class="ph"><b id="postTitle"></b><span id="postBy"></span></div>
+      <div id="postBody"></div>
+      <div class="nav"><button id="postBack">← 列表</button><button id="postPrev">上一篇</button><button id="postNext">下一篇</button><span class="grow"></span><button id="postMore" hidden>下一頁</button></div>
+    </div>
+  </div>
+  <div class="bars">
+    <div class="bar" id="hp" hidden><i></i><span></span></div>
+    <div class="bar" id="mp" hidden><i></i><span></span></div>
+  </div>
+</section>
+
+<section class="console">
+  <div id="term"></div>
+  <div id="quick"></div>
+  <div class="inp"><input id="cmd" type="text" autocomplete="off" spellcheck="false" placeholder="輸入指令，Enter 送出"></div>
+</section>
+
+<dialog id="mapDlg">
+  <div class="mapwin">
+    <div class="dhead">
+      <b>地圖</b>
+      <select id="mapSheet" title="區域"></select>
+      <input id="mapAreaName" maxlength="30" title="區域名稱（會用在匯出的檔名與標題）">
+      <select id="mapFloor" title="樓層"></select>
+      <label class="chk"><input id="mapNames" type="checkbox" checked> 房間名稱</label>
+      <span class="grow"></span>
+      <button id="mapClose" class="x" title="關閉">✕</button>
+    </div>
+    <canvas id="mapBig"></canvas>
+    <div class="dfoot">
+      <button id="mapHere">目前位置</button><button id="mapFit">全部顯示</button>
+      <span id="mapHover" class="note"></span><span class="grow"></span>
+      <span id="mapStats" class="note"></span>
+      <button id="mapPng" title="把這個區域、這個樓層存成 PNG 圖片">匯出圖片</button>
+      <button id="mapJson" title="整張地圖（所有區域）存成 JSON，可備份或匯入到其他帳號">匯出 JSON</button>
+      <button id="mapImport" title="從 JSON 檔還原地圖（會取代目前的地圖）">匯入 JSON</button>
+      <input id="mapFile" type="file" accept=".json,application/json" hidden>
+      <button id="mapAreaDel" class="danger" title="刪除這個區域">刪除區域</button>
+      <button id="mapClear" class="danger" title="清除整張地圖">全部清除</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="settings">
+  <form method="dialog" id="setForm">
+    <div class="dhead"><b>設定</b><span class="grow"></span><button value="cancel" class="x" title="關閉">✕</button></div>
+    <div class="tabs" id="setTabs">
+      <button type="button" data-tab="acct" class="on">帳號</button><button type="button" data-tab="alias">別名</button>
+      <button type="button" data-tab="trig">觸發</button><button type="button" data-tab="timer">定時</button><button type="button" data-tab="quick">快捷</button>
+    </div>
+    <div class="pane" data-pane="acct">
+      <label>顯示名稱 <input id="pName" maxlength="30"></label>
+      <label>英文名字（登入帳號） <input id="pUser" maxlength="40" autocomplete="off"></label>
+      <label>密碼 <input id="pPass" type="password" maxlength="100" autocomplete="new-password"></label>
+      <label class="chk"><input id="pAutoLogin" type="checkbox"> 連線後自動登入</label>
+      <label class="chk"><input id="pAutoRe" type="checkbox"> 斷線後自動重新連線</label>
+      <details><summary>進階：伺服器位址</summary>
+        <label>主機 <input id="pHost" maxlength="100"></label><label>連接埠 <input id="pPort" type="number" min="1" max="65535"></label></details>
+      <p class="note">密碼會以明文存放在這台電腦的 <code>kkmud/data/profiles.json</code>，只用於自動登入，不會寫進紀錄檔，也不會回傳到網頁。不想存就留空，改成每次手動輸入。</p>
+      <div class="rowbtn"><button type="button" id="pNew">＋ 新增帳號</button><button type="button" id="pOpen">在新分頁開啟此帳號</button><span class="grow"></span><button type="button" id="pDel" class="danger">刪除此帳號</button></div>
+    </div>
+    <div class="pane" data-pane="alias" hidden>
+      <p class="note">輸入別名時改送出對應的指令。多個指令用 <code>;</code> 分隔，<code>#wait 500</code> 表示等待 500 毫秒。<code>%1 %2</code> 是別名後面的參數，<code>%*</code> 是全部參數。</p>
+      <div class="list" id="aliasList"></div><button type="button" id="aliasAdd">＋ 新增別名</button>
+    </div>
+    <div class="pane" data-pane="trig" hidden>
+      <p class="note">伺服器輸出的某一行包含指定文字時，自動送出指令。勾選「正規」時以正規表示式比對，<code>%1 %2</code> 是括號擷取的內容。冷卻秒數內不會重複觸發。</p>
+      <div class="list" id="trigList"></div><button type="button" id="trigAdd">＋ 新增觸發</button>
+    </div>
+    <div class="pane" data-pane="timer" hidden>
+      <p class="note">登入遊戲後，每隔指定秒數自動送出指令（最短 5 秒）。斷線時停止，重新登入後恢復。</p>
+      <div class="list" id="timerList"></div><button type="button" id="timerAdd">＋ 新增定時</button>
+    </div>
+    <div class="pane" data-pane="quick" hidden>
+      <p class="note">指令列上方的 10 個按鈕，也可以按 <code>Alt+1</code> ~ <code>Alt+0</code>。指令的寫法和別名一樣：<code>;</code> 分隔多個指令、<code>#wait 500</code> 等待、也可以用別名。名稱留空時用指令開頭當名稱；指令留空的按鈕不會作用。</p>
+      <div class="list" id="quickList"></div>
+    </div>
+    <div class="dfoot"><span id="setMsg" class="note"></span><span class="grow"></span><button value="cancel">取消</button><button type="button" id="setSave" class="primary">儲存</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

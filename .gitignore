@@ -1,0 +1,16 @@
+# Account data: data/profiles.json holds MUD passwords in plain text. Never commit it.
+data/
+# Session logs: other players' names, chat and your own commands
+logs/
+*.log
+!tools/fixtures/*.log
+
+# Game assets are not part of this repository (see README)
+_extracted/
+assets/
+
+node_modules/
+*.tmp
+.DS_Store
+Thumbs.db
+.claude/

@@ -1,0 +1,14 @@
+{
+  "name": "kkmud",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "A graphical web client for the text MUD 萬王之王 (King of Kings, kks.muds.idv.tw), with a 3D scene, minimap, shop/backpack/board panels and automation.",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js 8140",
+    "test": "node tools/maptest.mjs && node tools/invtest.mjs && node tools/boardtest.mjs && node tools/autotest.js",
+    "mock": "node tools/mockmud.js 4999"
+  }
+}
