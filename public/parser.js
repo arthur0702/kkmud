@@ -1,5 +1,5 @@
 // Pure text -> game-state logic (no DOM), so it can be replayed against session logs with Node (see tools/replay.mjs).
-import { PARSER, DIRS, DIR_ALIAS, TERRAIN, DEFAULT_TERRAIN, SHOP } from './config.js';
+import { PARSER, DIRS, DIR_ALIAS, TERRAIN, DEFAULT_TERRAIN, SHOP, ITEMS, ITEM_IDS, MONSTERS } from './config.js';
 
 // One line of a shop listing -> {name, id, index, price} or null. Deliberately loose: the exact layout differs between shops.
 export function shopLine(l) {
@@ -13,6 +13,15 @@ export function shopLine(l) {
   let name = (idm ? rest.slice(0, idm.index) : rest.replace(SHOP.price, ' ').replace(/[\d,]+\s*$/, '')).replace(/[\s　.:：|│\-=]+$/, '').replace(/^[\s　|│]+/, '').trim();
   if (!name || name.length > 30 || (!idm && !idx)) return null;
   return { name, id: idm ? idm[1].trim().toLowerCase() : '', index: idx ? +idx[1] : null, price };
+}
+
+// Is this thing an object (equipment, board, ...) rather than a creature? known = ids seen in the backpack or a shop list.
+export function isItem(name, id = '', known = null) {
+  const i = id.trim().toLowerCase();
+  if (i && known?.has(i)) return true;
+  const head = (i.split(' of ')[0].split(/\s+/).pop() || '').replace(/'s$/, '');
+  if (ITEM_IDS.has(head)) return true;
+  return ITEMS.some(([re]) => re.test(name)) && !MONSTERS.some(([re]) => re.test(name));
 }
 
 export function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }

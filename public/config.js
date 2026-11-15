@@ -182,14 +182,22 @@ export const CORPSE_MODEL = 'gltf/bin/building/corpse.glb';
 // Things that are objects rather than creatures.
 export const ITEMS = [
   [/屍體|遺骸|屍首/, 'gltf/bin/building/corpse.glb'],
-  [/留言板|留言版|佈告|告示|看板|小艇|船$|馬車|劍$|刀$|斧$|槍$|矛$|弓$|杖$|棒$|錘$|盾$|甲$|盔$|袍$|靴$|鞋$|帽$|戒指|項鍊|藥水|藥草|卷軸|袋$|箱$|金幣|銀幣|寶石|鑰匙|麵包|水壺|火把|招牌|噴泉|雕像/, 'gltf/bin/building/item.glb'],
+  [/留言[板版]|公布欄|佈告|告示|討論[板版]|專用板|看板|小艇|船$|馬車|劍$|刀$|斧$|槍$|矛$|弓$|彈弓|杖$|棒$|錘$|鎚$|盾$|盾牌|甲$|盔$|袍$|衫$|褲$|裙$|靴$|鞋$|帽$|頭巾|頭環|斗[蓬篷]|披風|手套|臂環|戒指|戒$|項鍊|鏡$|羽飾|綾緞|藥水|藥草|藥膏|卷軸|袋$|箱$|金幣|銀幣|寶石|鑰匙|麵包|水壺|火把|骨頭|招牌|噴泉|雕像/, 'gltf/bin/building/item.glb'],
 ];
+// English head nouns that make a thing an object whatever its Chinese name says: the last word of the id,
+// or the word before " of " ("The magic ring of minerva" -> ring). Checked before monsters, so 龍鱗盾(Dragon shield) is a shield.
+// People keep theirs: "Priest of moon" -> priest, "Soldier of west gate" -> soldier.
+export const ITEM_IDS = new Set(('sword shortsword longsword blade dagger knife axe hammer mace club staff wand rod spear lance halberd bow crossbow arrow arrows whip claw '
+  + 'shield buckler armor armour mail plate robe cloth clothes shirt vest coat cloak cape mantle pants trousers skirt belt leggings '
+  + 'boots shoes chaussure sandals gloves gauntlets helmet helm hat cap turban hood mask ring necklace amulet earring bracelet arms armlet '
+  + 'zonate circle crown tiara brocade feather mirror wing hand potion pill plaster herb scroll book key gold coin coins gem jewel bone bag box '
+  + 'chest torch bottle bread board sign ship boat statue fountain corpse').split(' '));
 
 // Sample text for the offline demo button (invented rooms written in the server's real layout).
 export const DEMO = [
   '奇岩城中央廣場 - \n    這裡是奇岩城最熱鬧的中央廣場，石板鋪成的街道向四方延伸，廣場中央有一座\n噴泉，旁邊立著一塊招牌，幾棵樹在微風中搖曳。\n    這裡明顯的出口是 north、south、east 和 west。\n  城門衛兵(guard)\n  流浪的吟遊詩人(bard)\n  一隻野狗(dog)\n> ',
   '城北森林 - \n    茂密的森林，高大的樹木遮住了陽光，草叢中似乎有東西在移動。\n    這裡明顯的出口是 south 和 northeast。\n  \x1b[1;31m兇猛的野狼(wolf)\x1b[2;37;0m\n  一隻蝙蝠(bat)\n  巨大的蜘蛛(spider)\n> ',
-  '幽暗的洞穴 - \n    潮濕陰冷的洞穴，地上散落著白骨，深處傳來低沉的吼聲。\n    這裡明顯的出口是 southwest、up 和 down。\n  \x1b[1;31m紅龍(dragon)\x1b[2;37;0m\n  骷髏戰士(skeleton)\n  冒險者的屍體(corpse)\n> ',
+  '幽暗的洞穴 - \n    潮濕陰冷的洞穴，地上散落著白骨，深處傳來低沉的吼聲。\n    這裡明顯的出口是 southwest、up 和 down。\n  \x1b[1;31m紅龍(dragon)\x1b[2;37;0m\n  骷髏戰士(skeleton)\n  冒險者的屍體(corpse)\n  藤木小盾牌(Small shield)\n  米娜娃魔力閃戒(The magic ring of minerva)\n> ',
   '你用短劍往骷髏戰士的身體斜砍, 結果造成一處傷害 !\n( 骷髏戰士傷到不少地方, 流了許多鮮血。 )\n骷髏戰士的短劍刺向你, 但是沒有造成任何傷害。\n你倒握短劍, 順勢往骷髏戰士的頭部一刺, 結果造成一處嚴重的傷害 !\n( 骷髏戰士已經奄奄一息了。 )\n\n骷髏戰士死了。\n\n(你得到 69 點經驗。)\n',
   '查克銀行 - \n    你走進了一家銀行, 行員們正在櫃檯後忙碌著, 幾個渾身肌肉的警衛正\n狠狠的盯著你看。這裏是世界聞名的大奸商查克開的銀行。你可以在這裏存(deposit)/提(withdraw)款和轉帳(transfer), 牆上掛著一面銅牌(plaque)。\n    這裡唯一的出口是 \x1b[1mnorth\x1b[2;37;0m。\n  酸甜苦辣留言板(Board) [ 35 張留言﹐35 張未讀 ]\n  短劍(Shortsword)\n  十枚金幣(Gold)\n> ',
   '你撿起十枚金幣。\n> ',

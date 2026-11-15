@@ -3,7 +3,7 @@ import { RoomScene } from './scene.js';
 import { sid, q, post } from './api.js';
 import { initSettings } from './settings.js';
 import { initMap } from './mapview.js';
-import { MudParser, hash, shopLine, dirOf } from './parser.js';
+import { MudParser, hash, shopLine, dirOf, isItem } from './parser.js';
 import { PARSER, DIRS, DEFAULT_TERRAIN, MONSTERS, PEOPLE, PEOPLE_DEFAULT, FEMALE, ITEMS, ACTIONS, CORPSE, CORPSE_MODEL, ROOM_WORD, ROOM_VERBS, SHOP, INVENTORY, BOARD, DEMO, DEMO_CMD } from './config.js';
 
 const $ = id => document.getElementById(id);
@@ -145,11 +145,24 @@ function parseThing(l) {
   return t;
 }
 
+// ids of things seen in the backpack or a shop list are objects for sure (kept in this browser)
+const knownItems = new Set(store.get('knownItems', []));
+function learnItems(ids) {
+  const before = knownItems.size;
+  for (const i of ids) if (i) knownItems.add(i.toLowerCase());
+  if (knownItems.size === before) return;
+  store.set('knownItems', [...knownItems].slice(-2000));
+  if (room?.things.some(t => t.kind !== 'item' && t.kind !== 'corpse' && knownItems.has(t.id))) {      // fix what is on screen now
+    room.things = room.things.map(t => t.kind !== 'item' && t.kind !== 'corpse' && knownItems.has(t.id) ? { ...classify(t.name, t.id), uid: ++uid } : t);
+    scene.setThings(room.things);
+  }
+}
+
 // name (+ id when known) -> what it is and which model stands in for it
 function classify(name, id) {
   if (!name) return null;
   if (CORPSE.test(name)) return { name, id, kind: 'corpse', url: CORPSE_MODEL };
-  for (const [re, url] of ITEMS) if (re.test(name) && !MONSTERS.some(([r]) => r.test(name))) return { name, id, kind: 'item', url };
+  if (isItem(name, id, knownItems)) return { name, id, kind: 'item', url: ITEMS[ITEMS.length - 1][1] };
   for (const [re, folder] of MONSTERS) if (re.test(name) && manifest.monsters[folder]) return { name, id, kind: 'monster', url: manifest.monsters[folder] };
   const sex = FEMALE.test(name) ? 'w' : 'm';
   let cls = (PEOPLE.find(([re]) => re.test(name)) || [])[1] || PEOPLE_DEFAULT[hash(name) % PEOPLE_DEFAULT.length];
@@ -159,6 +172,7 @@ function classify(name, id) {
 
 // goods panel built from the reply to "list"
 function showShop(all, more) {
+  learnItems(all.map(g => g.id));
   const box = $('shop'), rows = $('shopRows');
   rows.textContent = '';
   if (!all.length) { box.hidden = true; return; }
@@ -189,6 +203,7 @@ $('shopClose').onclick = () => { $('shop').hidden = true; };
 
 // backpack built from the reply to "i": in-use items first, each with the actions that fit it
 function showInv(items, load) {
+  learnItems(items.map(i => i.id));
   const rows = $('invRows'); rows.textContent = '';
   $('invLoad').textContent = load ? `負重 ${load[0]}/${load[1]}` : '';
   $('invTitle').textContent = `背包（${items.length} 件）`;
