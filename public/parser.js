@@ -36,7 +36,7 @@ export class MudParser {
   constructor(cb) { this.cb = cb; this.reset(); }
 
   reset() {
-    this.buf = ''; this.recent = []; this.room = null; this.collecting = false; this.paging = false; this.inv = null; this.board = null; this.post = null; this.lastCmd = '';
+    this.buf = ''; this.recent = []; this.room = null; this.collecting = false; this.paging = false; this.inv = null; this.board = null; this.post = null; this.lastCmd = ''; this.lastAt = 0;
     this.queue = [];            // one entry per command sent, oldest first; each server reply ends with a "> " prompt
     this.inGame = false;        // becomes true at the first prompt, so login input never enters the queue
     this.map = new WorldMap();
@@ -46,7 +46,7 @@ export class MudParser {
   sent(cmd) {
     this.recent = []; this.collecting = false;
     if (!this.inGame) return;
-    if (cmd.trim()) this.lastCmd = cmd.trim();                 // its prompt may already have been taken by the answer to a pager
+    if (cmd.trim()) { this.lastCmd = cmd.trim(); this.lastAt = Date.now(); }       // its prompt may already have been taken by the answer to a pager
     if (this.paging) { this.paging = false; return; }         // Enter / q / b answer the pager (so it no longer waits); they are not new commands
     this.endPost(); this.endBoard();                           // a new command: whatever was still open has ended (missed prompt)
     this.queue.push({ cmd: cmd.trim(), dir: dirOf(cmd), at: Date.now() });
@@ -122,6 +122,9 @@ export class MudParser {
       this.post = { n: +bi[1], title: bi[2].trim(), author: bi[3], id: bi[4].toLowerCase(), date: bi[5].trim(), lines: [] };
       return;
     }
+    const inc = PARSER.incant.exec(l);                          // your spell went off: "妳喃喃唸道 : ..." right after "cast float"
+    const cast = /^cast\s+['"]?([a-z_]+)/i.exec(this.lastCmd);
+    if (inc && cast && Date.now() - this.lastAt < 15000) { this.cb.cast?.(cast[1].toLowerCase(), inc[1] === '妳' ? 'f' : 'm'); this.lastCmd = ''; }
     const ih = PARSER.invHead.exec(l);
     if (ih) { this.endInv(); this.inv = { items: [], load: ih[1] ? [+ih[1], +ih[2]] : null }; return; }
     if (this.inv) {

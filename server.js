@@ -62,6 +62,9 @@ function manifest() {
   }
   m.players = ls('gltf/bin/player').filter(f => /_[mw]\.glb$/.test(f)).map(f => f.slice(0, -4)).sort();
   m.bgm = ls('audio/sound/bgm').filter(f => f.endsWith('.wav')).sort();
+  // casting voices: sound/voice/<n>_<m|f>_<variant>.wav (which spell is which: SPELL_VOICE in public/config.js)
+  m.voices = {};
+  for (const f of ls('audio/sound/voice')) { const k = /^(\d+)_([mf]_\d+)\.wav$/.exec(f); if (k) (m.voices[k[1]] ||= []).push(k[2]); }
   try {
     const names = JSON.parse(fs.readFileSync(path.join(ASSETS, 'text/gobname.bin'), 'utf8').replace(/^﻿/, '').replace(/,(\s*[}\]])/g, '$1'));
     const rows = fs.readFileSync(path.join(ASSETS, 'sprites/index.csv'), 'utf8').replace(/^﻿/, '').split(/\r?\n/).slice(1);

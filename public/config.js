@@ -42,6 +42,10 @@ export const PARSER = {
   boardHead: /^留言[板版]的使用方法請見 help board/,
   boardItem: /^\[\s*(\d+)\]\s+(.+?)\s+(\S+?)\(([A-Za-z][\w-]*)\)\s*\(\s*([^)]*?)\s*\)\s*$/,
   postEnd: /^== 本文完畢/,
+  // What your character says when a spell goes off (captured), right after "cast ...":
+  //   妳喃喃唸道 : 摩里多納 ～～ 賀魯 ...      妳低頭喃喃唸道 : 以大地之神 - 凱亞的聖名, 降福於吾身吧 !      你高舉雙手 : 戰神啊 ! ...
+  // Group 1 is 你 (male) or 妳 (female). A failed cast ("你要有目標才能施法。") has no colon, so it stays silent.
+  incant: /^([你妳])[^\s:：「」,，。!！]{1,10}\s*[:：]\s*\S/,
   // A move that did not happen.
   blocked: /這個方向沒有出路|沒有這個方向|你不能往|擋住了你|門是關著的|^What\?$/,
   exitSplit: /[、,，\s和及與跟。.\[\]【】()（）]+/,
@@ -165,6 +169,33 @@ export const BOARD = {
   thing: /留言[板版]|公布欄|佈告欄|告示[板牌]|討論[板版]|看板/,
   list: 'look {id}', read: 'read {n}', next: 'read new',
   autoPages: 30,              // pages of one post the panel turns by itself
+};
+
+// Spell -> casting voice (assets: audio/sound/voice/<n>_<m|f>_<0..2>.wav, recordings of the incantations above).
+// The voices are numbered by an older spell list, so this is not simply "spell number - 2000": spells added later
+// (dispel, double_heal, ...) have no voice and push the rest down. Worked out by speech-recognising the clips and
+// matching them to incantations seen in real sessions. Confirmed: angel 1, bless 5, calm 7, cure 9, cure_poison 10,
+// death_touch 13, demon_bane 15, detect_invi 17, divine_dust 18, first_aid 26, float 30, heal 35, holy_* 37-43,
+// make_rope 54, mind_blast 55, natural_heal 57, pure_shield 61, restore 63, sanctuary 64, spectre_touch 69, strong 75.
+// Best guesses between those anchors: 44-53 (ice_lance ... magic_shield), 65-68 and 70-74; 101-150 are numbered
+// directly. Correct a number here if a spell sounds wrong.
+export const SPELL_VOICE = {
+  angel: 1, angel_voice: 2, anti_magic: 3, arc_fire: 4, bless: 5, blind: 6, calm: 7, coating: 8,
+  cure: 9, cure_poison: 10, dagger_fall: 11, dancing_sword: 12, death_touch: 13, delay_bomb: 14, demon_bane: 15, demon_strike: 16,
+  detect_invi: 17, divine_dust: 18, divine_power: 19, dragon: 20, dragon_breath: 21, enlarge: 22, fear: 23, fireball: 24,
+  firefly: 25, first_aid: 26, fist: 27, flame_sword: 28, flare: 29, float: 30, freeze: 31, gravity: 32,
+  haste: 33, hazy: 34, heal: 35, heroism: 36, holy_blast: 37, holy_light: 38, holy_power: 39, holy_spirit: 40,
+  holy_strike: 41, holy_water: 42, holy_word: 43, ice_lance: 44, identify: 45, invisible: 47, lightning: 48, lightning_bolt: 49,
+  location: 50, magefire: 51, magic_missle: 52, magic_shield: 53, make_rope: 54, mind_blast: 55, moon_light: 56, natural_heal: 57,
+  ogre_power: 58, poison: 59, pure_blade: 60, pure_shield: 61, regeneration: 62, restore: 63, sanctuary: 64, shadow_shield: 65,
+  silence: 66, sky_sword: 67, soul_steal: 68, spectre_touch: 69, speedup: 70, spirit_hammer: 71, stone: 72, stone_skin: 73,
+  storm: 74, strong: 75, miracle_light: 101, clear_word: 102, protect_word: 103, lightning_word: 104, voice: 105, hold: 106,
+  command: 107, words: 108, bloodlust: 109, forgetter: 110, darken: 111, fly_swords: 112, sword_shield: 113, earth_sword: 114,
+  meteor_shower: 115, animate: 116, drain: 117, dark_gate: 118, death_curse: 119, vampires: 120, dark_abyss: 122, divine_word: 123,
+  god_power: 124, divine_blame: 125, divine_aid: 126, divine_nuke: 127, my_word: 128, my_blame: 129, my_aid: 130, angel_tear: 131,
+  deep_recover: 132, mind_storm: 133, deep_terror: 134, time_storm: 135, holy_path: 136, full_heal: 137, power_word: 138, mighty_word: 140,
+  dark_cloak: 141, arc_dagger: 142, slashs: 143, energy_shock: 144, energy_storm: 146, my_power: 147, my_nuke: 148, lightning_blade: 149,
+  dark_soul: 150,
 };
 
 export const SHOP = {

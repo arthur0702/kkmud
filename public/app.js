@@ -4,7 +4,7 @@ import { sid, q, post } from './api.js';
 import { initSettings } from './settings.js';
 import { initMap } from './mapview.js';
 import { MudParser, hash, shopLine, dirOf, isItem } from './parser.js';
-import { PARSER, DIRS, DEFAULT_TERRAIN, MONSTERS, PEOPLE, PEOPLE_DEFAULT, FEMALE, ITEMS, ACTIONS, CORPSE, CORPSE_MODEL, ROOM_WORD, ROOM_VERBS, SHOP, INVENTORY, BOARD, DEMO, DEMO_CMD } from './config.js';
+import { PARSER, DIRS, DEFAULT_TERRAIN, MONSTERS, PEOPLE, PEOPLE_DEFAULT, FEMALE, ITEMS, ACTIONS, CORPSE, CORPSE_MODEL, ROOM_WORD, ROOM_VERBS, SHOP, INVENTORY, BOARD, SPELL_VOICE, DEMO, DEMO_CMD } from './config.js';
 
 const $ = id => document.getElementById(id);
 const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('kk.' + k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem('kk.' + k, JSON.stringify(v)); } catch { /* private mode */ } } };
@@ -130,6 +130,7 @@ const parser = new MudParser({
   inventory(items, load) { showInv(items, load); },
   board(posts, desc, more) { showBoard(posts, desc, more); },
   post(p, more, waiting) { showPost(p, more, waiting); },
+  cast(spell, sex) { if (!replaying) spellVoice(spell, sex); },
   thing: l => { const t = parseThing(l); if (t) t.uid = ++uid; return t; },
   newcomer: name => { const t = classify(name, ''); if (t) t.uid = ++uid; return t; },      // walked in: the id is unknown until the next look
 });
@@ -347,7 +348,9 @@ const mapUI = initMap(parser.map, () => room);
 const drawMap = () => mapUI.redraw();
 
 // ------------------------------------------------------------------ commands / network
-const input = $('cmd'), history = []; let hi = 0;
+// typed commands, kept per account in this browser so a reload keeps them (never what is typed while the server hides echo)
+const HISTORY_KEY = 'history.' + sid, HISTORY_MAX = 300;
+const input = $('cmd'), history = store.get(HISTORY_KEY, []).filter(x => typeof x === 'string').slice(-HISTORY_MAX); let hi = history.length;
 function command(text) {
   if (!connected) { sys('尚未連線'); return Promise.resolve(); }
   return post('/api/send', { text }).catch(() => sys('送出失敗'));
@@ -355,20 +358,23 @@ function command(text) {
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const v = input.value; input.value = '';
-    if (v && !echoOff && history[history.length - 1] !== v) history.push(v);
+    if (v && !echoOff && history[history.length - 1] !== v) {
+      history.push(v); if (history.length > HISTORY_MAX) history.splice(0, history.length - HISTORY_MAX);
+      store.set(HISTORY_KEY, history);
+    }
     hi = history.length; command(v);
     return;
   }
-  // history: ↑/↓ while the box has text (so a recalled command can be browsed on), or Ctrl+↑/↓ from an empty box
-  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (input.value || e.ctrlKey)) {
+  // history: ↑/↓ (walking is on the numpad)
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     if (e.key === 'ArrowUp') { if (!history.length) return; hi = Math.max(0, hi - 1); input.value = history[hi]; }
     else { hi = Math.min(history.length, hi + 1); input.value = history[hi] || ''; }
     e.preventDefault(); e.stopPropagation();
   }
 });
-addEventListener('keydown', e => {          // arrows and numpad walk when the command box is empty
+addEventListener('keydown', e => {          // the numpad walks (and a few more) when the command box is empty
   const NUM = { Numpad8: 'north', Numpad2: 'south', Numpad4: 'west', Numpad6: 'east', Numpad7: 'northwest', Numpad9: 'northeast', Numpad1: 'southwest', Numpad3: 'southeast', NumpadSubtract: 'up', NumpadAdd: 'down', Numpad5: 'look', Numpad0: INVENTORY.list,
-    ArrowUp: 'north', ArrowDown: 'south', ArrowLeft: 'west', ArrowRight: 'east' };
+    NumpadDivide: 'inventory', NumpadMultiply: 'score' };
   const t = e.target, typing = t !== input && t.matches?.('input, textarea, select, [contenteditable]');
   if (!NUM[e.code] || input.value || echoOff || typing || e.ctrlKey || e.altKey || e.metaKey || document.querySelector('dialog[open]')) return;
   command(NUM[e.code]); e.preventDefault();
@@ -413,6 +419,20 @@ function music(terrainKey) {
 }
 $('bgm').checked = store.get('bgm', false);
 $('bgm').onchange = () => { store.set('bgm', $('bgm').checked); music(room?.terrain.key || 'plain'); };
+
+// your spell went off (the server printed the incantation): play its casting voice, 男/女 as the server says 你/妳
+function spellVoice(word, sex) {
+  if (!$('voice').checked || !manifest.voices) return;
+  const ids = Object.keys(SPELL_VOICE), starts = ids.filter(k => k.startsWith(word));
+  const id = SPELL_VOICE[word] ? word : starts.length === 1 ? starts[0] : null;      // "cast firebal" -> fireball
+  const n = id && SPELL_VOICE[id], all = n && manifest.voices[n];
+  if (!all?.length) return;
+  const mine = all.filter(v => v[0] === sex), list = mine.length ? mine : all;
+  const a = new Audio(`/assets/audio/sound/voice/${n}_${list[Math.floor(Math.random() * list.length)]}.wav`);
+  a.volume = 0.85; a.play().catch(() => { /* needs a user gesture first */ });
+}
+$('voice').checked = store.get('voice', true);
+$('voice').onchange = () => store.set('voice', $('voice').checked);
 
 (async () => {
   manifest = await (await fetch('/api/manifest')).json();
