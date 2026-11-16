@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DIRS } from './config.js';
+import { boardTexture, pathColor, makePiece, animatePiece, makeDecor } from './chess.js';
 
 const A = '/assets/';
 const HALF = 4.5;                 // room is 9x9 tiles, 1 unit = one 80px tile
@@ -22,6 +23,10 @@ export class RoomScene {
     this.gltf = new Map(); this.tex = new Map();
     this.mixers = new Set(); this.labels = []; this.exitBtns = [];
     this.things = []; this.k = null; this.player = null; this.walk = null; this.token = 0;
+    this.style = 'chess'; this.procs = new Set();             // 'chess' = built-in pieces and boards, 'official' = extracted game assets
+    // light for the built-in pieces (the official models use unlit materials and ignore it)
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x404048, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-4, 9, 6); this.scene.add(sun);
     this.clock = new THREE.Clock();
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement); this.resize();
     this.renderer.setAnimationLoop(() => this.tick());
@@ -78,7 +83,15 @@ export class RoomScene {
     return actor;
   }
 
+  // a thing's stand-in: a chess piece, or its glTF model
+  actorFor(t) {
+    if (this.style !== 'chess') return this.model(t.url);
+    const a = makePiece(t, t.kind === 'monster' ? sizeOf(t.url || '') : 1.35);
+    this.procs.add(a); return Promise.resolve(a);
+  }
+
   play(actor, kind) {
+    if (actor?.proc) { if (!actor.dead) actor.anim = { kind, t: 0 }; return; }
     if (!actor?.mixer) return;
     const pick = re => actor.clips.find(c => re.test(c.name));
     const clip = { idle: pick(/@standby$/i) || pick(/@(none|idle)$/i) || pick(/standby|idle/i) || actor.clips[0],
@@ -95,14 +108,18 @@ export class RoomScene {
   dispose(actor) {
     if (!actor) return;
     if (actor.mixer) { actor.mixer.stopAllAction(); this.mixers.delete(actor.mixer); }
+    this.procs.delete(actor);
     actor.root.removeFromParent();
-    actor.root.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) m.dispose(); });
+    actor.root.traverse(o => { if (o.isMesh) { for (const m of [].concat(o.material)) m.dispose(); if (actor.proc) o.geometry.dispose(); } });
   }
 
-  async setPlayer(url) {
-    const a = await this.model(url);
+  setStyle(style) { this.style = style === 'official' ? 'official' : 'chess'; }
+
+  // url: the official player model; female: which chess piece (queen or king) stands for you
+  async setPlayer(url, female = false) {
+    const a = this.style === 'chess' ? await this.actorFor({ kind: 'player', name: '', female }) : await this.model(url);
     if (!a) return;
-    this.k = HUMAN_H / a.height;                      // one global scale keeps creatures in proportion to people
+    this.k = a.fixed ? 1 : HUMAN_H / a.height;        // one global scale keeps creatures in proportion to people
     this.dispose(this.player);
     a.root.scale.setScalar(this.k); this.actors.add(a.root); this.player = a; this.play(a, 'idle');
   }
@@ -112,18 +129,21 @@ export class RoomScene {
     const token = ++this.token;
     this.room.clear();
     for (const b of this.exitBtns) b.remove(); this.exitBtns = [];
-    const ground = (tile, w, d) => {
-      const t = this.texture(`sprites/${tile}.png`).clone(); t.needsUpdate = true; t.repeat.set(w, d);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshBasicMaterial({ map: t }));
+    const chess = this.style === 'chess', key = room.terrain.key;
+    const ground = (tile, w, d, path = false) => {
+      let mat;
+      if (chess) mat = path ? new THREE.MeshBasicMaterial({ color: pathColor(key) }) : new THREE.MeshBasicMaterial({ map: boardTexture(key) });
+      else { const t = this.texture(`sprites/${tile}.png`).clone(); t.needsUpdate = true; t.repeat.set(w, d); mat = new THREE.MeshBasicMaterial({ map: t }); }
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat);
       m.rotation.x = -Math.PI / 2; return m;
     };
     this.room.add(ground(room.terrain.tile, HALF * 2, HALF * 2));
-    const hub = ground(room.terrain.path, 1.4, 1.4); hub.position.y = 0.004; this.room.add(hub);
+    const hub = ground(room.terrain.path, 1.4, 1.4, true); hub.position.y = 0.004; this.room.add(hub);
     for (const ex of room.exits) {
       const d = DIRS[ex];
       if (!d || d.dz) continue;
       const len = Math.hypot(d.dx, d.dy) * HALF;
-      const strip = ground(room.terrain.path, 1, len);          // the plane's long side lies along -Z before the yaw
+      const strip = ground(room.terrain.path, 1, len, true);          // the plane's long side lies along -Z before the yaw
       const g = new THREE.Group(); g.add(strip);
       g.position.set(d.dx * HALF / 2, 0.003, d.dy * HALF / 2); g.rotation.y = Math.atan2(-d.dx, -d.dy);
       this.room.add(g);
@@ -154,7 +174,7 @@ export class RoomScene {
     }
     // scenery sprites: seeded so a room always looks the same
     const rnd = mulberry(hash(room.name + room.exits.join()));
-    for (const s of room.decor) {
+    for (const s of (chess ? room.decorChess : room.decor) || []) {
       let x = 0, z = 0;
       for (let tries = 0; tries < 20; tries++) {
         x = (rnd() * 2 - 1) * (HALF - 0.6); z = (rnd() * 2 - 1) * (HALF - 0.6);
@@ -163,6 +183,7 @@ export class RoomScene {
           return Math.hypot(x - s.x, z - s.z) > 1.2 && !(Math.abs(x - s.x) < 1 && z > s.z); });
         if (clear && Math.abs(x) > 1.3 && Math.abs(z) > 1.3 && Math.abs(Math.abs(x) - Math.abs(z)) > 0.9) break;
       }
+      if (chess) { const d = makeDecor(s.kind, key, rnd); if (d) { d.position.set(x, 0, z); this.room.add(d); } continue; }
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.texture(s.f), alphaTest: 0.5 }));
       sp.center.set(0.5, 0); sp.scale.set(s.w / 80, s.h / 80, 1); sp.position.set(x, 0, z); this.room.add(sp);
     }
@@ -202,12 +223,12 @@ export class RoomScene {
     for (const cur of next) {
       if (cur.actor || cur.loading) continue;
       cur.loading = true;
-      this.model(cur.t.url).then(a => {
+      this.actorFor(cur.t).then(a => {
         cur.loading = false;
         if (!a || !this.things.includes(cur) || token !== this.token) { if (a) this.dispose(a); return; }
         // creature models are not in a common unit, so each is fitted to a size class instead
-        let s = this.k || 1;
-        if (cur.t.kind === 'item' || cur.t.kind === 'corpse') s = (cur.t.kind === 'corpse' ? 1.1 : 0.8) / Math.max(a.span, a.height);
+        let s = a.fixed ? 1 : this.k || 1;
+        if (a.fixed) { /* built at its size */ } else if (cur.t.kind === 'item' || cur.t.kind === 'corpse') s = (cur.t.kind === 'corpse' ? 1.1 : 0.8) / Math.max(a.span, a.height);
         else if (cur.t.kind === 'monster') s = sizeOf(cur.t.url) / a.span;
         a.root.scale.setScalar(s); a.root.position.copy(cur.pos);
         a.root.rotation.y = 0;                                    // everyone faces the viewer
@@ -247,6 +268,7 @@ export class RoomScene {
   tick() {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     for (const m of this.mixers) m.update(dt);
+    for (const a of this.procs) animatePiece(a, dt);
     if (this.walk && this.player) {
       const w = this.walk; w.t += dt / w.dur;
       const k = Math.min(1, w.t);

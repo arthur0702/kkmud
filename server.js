@@ -179,5 +179,5 @@ http.createServer(async (req, res) => {
   return serveFile(res, PUBLIC, url === '/' ? 'index.html' : url.slice(1), req, false);
 }).listen(PORT, '127.0.0.1', () => {
   console.log(`KK MUD client: http://localhost:${PORT}/   (default MUD ${DEFAULT_MUD.host}:${DEFAULT_MUD.port})`);
-  console.log(`assets: ${ASSETS}${fs.existsSync(path.join(ASSETS, 'gltf')) ? '' : '  (NOT FOUND - text, minimap and panels still work; the scene shows only name tags and exits)'}`);
+  console.log(`assets: ${ASSETS}${fs.existsSync(path.join(ASSETS, 'gltf')) ? '' : '  (not found - using the built-in chess style; everything else works the same)'}`);
 });

@@ -4,6 +4,7 @@ import { sid, q, post } from './api.js';
 import { initSettings } from './settings.js';
 import { initMap } from './mapview.js';
 import { MudParser, hash, shopLine, dirOf, isItem } from './parser.js';
+import { DECOR_WORDS } from './chess.js';
 import { PARSER, DIRS, DEFAULT_TERRAIN, MONSTERS, PEOPLE, PEOPLE_DEFAULT, FEMALE, ITEMS, ACTIONS, CORPSE, CORPSE_MODEL, ROOM_WORD, ROOM_VERBS, SHOP, INVENTORY, BOARD, SPELL_VOICE, DEMO, DEMO_CMD } from './config.js';
 
 const $ = id => document.getElementById(id);
@@ -88,6 +89,7 @@ const parser = new MudParser({
   room(r, moved) {
     room = r;
     r.decor = decorFor(r.name + r.desc, r.terrain, r.name + r.exits.join());
+    r.decorChess = decorWords(r.name + r.desc, r.terrain);
     scene.setRoom(r, moved);
     if (moved || r.name !== $('roomName').textContent) { $('shop').hidden = true; $('board').hidden = true; }     // left the shop / the board
     boardButton();
@@ -135,7 +137,12 @@ const parser = new MudParser({
   newcomer: name => { const t = classify(name, ''); if (t) t.uid = ++uid; return t; },      // walked in: the id is unknown until the next look
 });
 let uid = 0, replaying = false;
-const feed = plain => parser.feed(plain);
+// the server says 妳 to a female character: then you are the queen rather than the king
+let female = store.get('female.' + sid, false);
+const feed = plain => {
+  if (!female && /(?:^|\n)(?:> )?妳/.test(plain)) { female = true; store.set('female.' + sid, true); if (scene.style === 'chess') scene.setPlayer('', true); }
+  parser.feed(plain);
+};
 
 function parseThing(l) {
   const m = PARSER.thing.exec(l);
@@ -164,7 +171,8 @@ function classify(name, id) {
   if (!name) return null;
   if (CORPSE.test(name)) return { name, id, kind: 'corpse', url: CORPSE_MODEL };
   if (isItem(name, id, knownItems)) return { name, id, kind: 'item', url: ITEMS[ITEMS.length - 1][1] };
-  for (const [re, folder] of MONSTERS) if (re.test(name) && manifest.monsters[folder]) return { name, id, kind: 'monster', url: manifest.monsters[folder] };
+  // a monster even without its model: the chess style only needs to know what kind of creature it is (the folder name gives its size)
+  for (const [re, folder] of MONSTERS) if (re.test(name) && (manifest.monsters[folder] || !manifest.assets)) return { name, id, kind: 'monster', url: manifest.monsters[folder] || `gltf/bin/monster/${folder}/${folder}.glb` };
   const sex = FEMALE.test(name) ? 'w' : 'm';
   let cls = (PEOPLE.find(([re]) => re.test(name)) || [])[1] || PEOPLE_DEFAULT[hash(name) % PEOPLE_DEFAULT.length];
   if (!manifest.players.includes(`${cls}_${sex}`)) cls = 'warrior';
@@ -333,6 +341,14 @@ function roomWords(desc) {
   }
 }
 
+// scenery for the chess style: simple shapes for the trees, rocks, ... the terrain has or the text mentions
+function decorWords(text, terrain) {
+  const out = [];
+  for (const d of terrain.decor) if (DECOR_WORDS[d]) out.push({ kind: DECOR_WORDS[d] });
+  for (const [ch, kind] of Object.entries(DECOR_WORDS)) if (text.includes(ch) && !out.some(o => o.kind === kind)) out.push({ kind }, { kind });
+  return out.slice(0, 10);
+}
+
 function decorFor(text, terrain, seed) {
   const out = [], names = Object.keys(manifest.gobs);
   const add = (name, n) => { const list = manifest.gobs[name] || manifest.gobs[names.find(k => k.includes(name))]; if (!list) return;
@@ -436,12 +452,24 @@ $('voice').onchange = () => store.set('voice', $('voice').checked);
 
 (async () => {
   manifest = await (await fetch('/api/manifest')).json();
-  if (!manifest.assets) sys('找不到素材資料夾，圖形畫面無法顯示（見 README）。');
+  // picture style: chess pieces (built in) or the official assets when they are installed
+  const st = $('style');
+  if (!manifest.assets) {
+    st.value = 'chess'; st.querySelector('[value=official]').disabled = true; st.title = '沒有安裝遊戲素材，只能使用西洋棋畫面（見 README）';
+    sys('找不到遊戲素材，使用內建的西洋棋畫面（見 README）。');
+  }
+  else st.value = store.get('style', 'chess');
+  scene.setStyle(st.value); $('model').disabled = st.value === 'chess';
+  st.onchange = async () => {
+    store.set('style', st.value); scene.setStyle(st.value); $('model').disabled = st.value === 'chess';
+    await scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female);
+    if (room) { scene.setRoom(room, null); scene.setThings(room.things); }
+  };
   const sel = $('model');
   for (const p of manifest.players) sel.add(new Option(p.replace(/_m$/, '（男）').replace(/_w$/, '（女）'), p));
   sel.value = manifest.players.includes(store.get('model', '')) ? store.get('model') : 'warrior_m';
-  sel.onchange = () => { store.set('model', sel.value); scene.setPlayer(`gltf/bin/player/${sel.value}.glb`); };
-  if (sel.value) await scene.setPlayer(`gltf/bin/player/${sel.value}.glb`);
+  sel.onchange = () => { store.set('model', sel.value); scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female); };
+  if (sel.value || scene.style === 'chess') await scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female);
   if (!room) scene.setRoom({ name: '', exits: [], terrain: DEFAULT_TERRAIN, decor: [] }, null);
   drawMap();
 })();
