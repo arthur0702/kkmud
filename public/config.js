@@ -131,8 +131,8 @@ export const FEMALE = /女|小姐|姑娘|婦|妹|姊|姐|公主|皇后|王后|�
 // Click menu: [label, command]. {id} is the thing's English id in lower case.
 // All of these were seen working in session logs.
 export const ACTIONS = {
-  person:  [['查看', 'look {id}'], ['攻擊', 'kill {id}']],
-  monster: [['查看', 'look {id}'], ['攻擊', 'kill {id}']],
+  person:  [['查看', 'look {id}'], ['戰力評估', 'consider {id}'], ['攻擊', 'kill {id}']],
+  monster: [['查看', 'look {id}'], ['戰力評估', 'consider {id}'], ['攻擊', 'kill {id}']],
   item:    [['查看', 'look {id}'], ['撿起', 'get {id}']],
   corpse:  [['查看', 'look {id}'], ['全部拾取', 'get all from {id}']],          // "get corpse" answers 這個東西拿不起來
 };
