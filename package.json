@@ -8,7 +8,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "node server.js 8140",
-    "test": "node tools/maptest.mjs && node tools/itemtest.mjs && node tools/spelltest.mjs && node tools/invtest.mjs && node tools/boardtest.mjs && node tools/autotest.js",
+    "test": "node tools/maptest.mjs && node tools/itemtest.mjs && node tools/spelltest.mjs && node tools/combattest.mjs && node tools/invtest.mjs && node tools/boardtest.mjs && node tools/autotest.js",
     "mock": "node tools/mockmud.js 4999"
   }
 }

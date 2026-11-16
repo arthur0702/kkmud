@@ -99,10 +99,14 @@ const parser = new MudParser({
   },
   things() { clearTimeout(thingTimer); thingTimer = setTimeout(() => room && scene.setThings(room.things), 120); boardButton(); },
   status(key, cur, max) {
-    const bar = $(key); bar.hidden = false; bar.firstElementChild.style.width = Math.max(0, Math.min(100, cur / Math.max(1, max) * 100)) + '%';
+    if (key === 'hp') hpMax = max;
+    const bar = $(key); bar.hidden = false; bar.title = ''; bar.classList.remove('est');
+    bar.firstElementChild.style.width = Math.max(0, Math.min(100, cur / Math.max(1, max) * 100)) + '%';
     bar.lastElementChild.textContent = `${key === 'hp' ? '體力' : '法力'} ${cur}/${max}`;
   },
   combat(ev) {
+    // "( 你受了幾處傷 ... )": the server describes you too; between "hp" commands the bar follows that description
+    if (ev.type === 'cond' && /^[你妳]$/.test(ev.who)) { selfCondition(ev.pct); return; }
     const hit = scene.act(ev);
     if (ev.type !== 'die' || !room) return;
     // let the death animation play, then leave a corpse where the creature stood
@@ -136,7 +140,14 @@ const parser = new MudParser({
   thing: l => { const t = parseThing(l); if (t) t.uid = ++uid; return t; },
   newcomer: name => { const t = classify(name, ''); if (t) t.uid = ++uid; return t; },      // walked in: the id is unknown until the next look
 });
-let uid = 0, replaying = false;
+let uid = 0, replaying = false, hpMax = 0;
+// your HP from a combat description: only a band, so it is shown as an estimate until the next exact "hp"/"score"
+function selfCondition(pct) {
+  const bar = $('hp'); bar.hidden = false; bar.classList.add('est');
+  bar.firstElementChild.style.width = pct + '%';
+  bar.lastElementChild.textContent = hpMax ? `體力 ≈${Math.round(hpMax * pct / 100)}/${hpMax}` : `體力 約 ${pct}%`;
+  bar.title = '依戰鬥訊息估計（送出 hp 可取得精確數值）';
+}
 // the server says 妳 to a female character: then you are the queen rather than the king
 let female = store.get('female.' + sid, false);
 const feed = plain => {
@@ -369,8 +380,44 @@ const HISTORY_KEY = 'history.' + sid, HISTORY_MAX = 300;
 const input = $('cmd'), history = store.get(HISTORY_KEY, []).filter(x => typeof x === 'string').slice(-HISTORY_MAX); let hi = history.length;
 function command(text) {
   if (!connected) { sys('尚未連線'); return Promise.resolve(); }
-  return post('/api/send', { text }).catch(() => sys('送出失敗'));
+  return post('/api/send', { text: expandIds(text) }).catch(() => sys('送出失敗'));
 }
+
+// ------------------------------------------------------------------ id list: #0 = you, #1.. = what is in the room (people first, then things)
+const ID_MAX = 15;
+let myId = '', idRefs = [], idSig = '';
+function idEntries() {
+  const out = [{ ref: myId || 'me', name: '你自己', kind: 'me' }];
+  const things = room?.things || [], seen = {};
+  // the MUD counts same-id things in the order it lists them: the second guard is "guard 2"
+  const refs = things.map(t => { if (!t.id) return null; seen[t.id] = (seen[t.id] || 0) + 1; return seen[t.id] > 1 ? `${t.id} ${seen[t.id]}` : t.id; });
+  const rank = t => (t.kind === 'person' || t.kind === 'monster' ? 0 : t.kind === 'item' ? 1 : 2);
+  things.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
+    .forEach(({ t, i }) => out.push({ ref: refs[i], name: t.name, kind: t.kind }));
+  return out.slice(0, ID_MAX);
+}
+function drawIds() {
+  const list = idEntries(), sig = JSON.stringify(list), box = $('idList');
+  idRefs = list.map(e => e.ref);
+  box.hidden = !$('idToggle').checked;
+  if (sig === idSig) return; idSig = sig;
+  box.textContent = '';
+  list.forEach((e, n) => {
+    const row = document.createElement('div'); row.className = e.kind;
+    row.title = `${e.name}（${e.ref || '名稱未知，先查看四周'}）：點一下把 #${n} 填入指令列`;
+    const b = document.createElement('b'); b.textContent = '#' + n;
+    const s = document.createElement('span'); s.textContent = e.ref || '?';
+    const i = document.createElement('i'); i.textContent = e.name;
+    row.append(b, s, i);
+    row.onclick = () => { const p = input.selectionStart ?? input.value.length; input.value = input.value.slice(0, p) + `#${n}` + input.value.slice(p); input.focus(); };
+    box.append(row);
+  });
+}
+// "look #1" -> "look guard"; numbers not in the list (and #wait) are left alone
+function expandIds(text) { if (echoOff) return text; return text.replace(/#(\d{1,2})(?!\d)/g, (m, n) => idRefs[+n] || m); }
+$('idToggle').checked = store.get('idlist', true);
+$('idToggle').onchange = () => { store.set('idlist', $('idToggle').checked); drawIds(); };
+setInterval(drawIds, 400);
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const v = input.value; input.value = '';
@@ -452,6 +499,8 @@ $('voice').onchange = () => store.set('voice', $('voice').checked);
 
 (async () => {
   manifest = await (await fetch('/api/manifest')).json();
+  try { myId = ((await (await fetch('/api/profiles')).json()).find(p => p.id === sid)?.user || '').toLowerCase(); } catch { /* keep 'me' */ }
+  drawIds();
   // picture style: chess pieces (built in) or the official assets when they are installed
   const st = $('style');
   if (!manifest.assets) {

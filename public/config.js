@@ -63,8 +63,9 @@ export const PARSER = {
     theirs: /往你的|刺向你|斬向你|砍向你|對準你|攻擊你|撲向你|咬向你/,   // someone attacking you
     hit: /結果造成/,
     died: /^(.{1,24}?)死了。\s*$/,
-    condition: /^\(\s*(.{1,24}?)(正處於最佳狀況|似乎受了點傷|受了幾處傷|傷到不少地方|身上到處都是傷口|已經奄奄一息)/,
-    conditionPct: { 正處於最佳狀況: 100, 似乎受了點傷: 90, 受了幾處傷: 75, 傷到不少地方: 50, 身上到處都是傷口: 28, 已經奄奄一息: 8 },
+    // also said about you:  ( 你受了幾處傷, 但是沒有傷到要害。 )  -> your HP bar follows the fight between "hp" commands
+    condition: /^\(\s*(.{1,24}?)(正處於最佳狀況|似乎受了點傷|受了幾處傷|傷到不少地方|身上到處都是傷口|渾身是血|已經奄奄一息)/,
+    conditionPct: { 正處於最佳狀況: 100, 似乎受了點傷: 90, 受了幾處傷: 75, 傷到不少地方: 50, 身上到處都是傷口: 30, 渾身是血: 15, 已經奄奄一息: 5 },
   },
 };
 
@@ -226,10 +227,10 @@ export const ITEM_IDS = new Set(('sword shortsword longsword blade dagger knife 
 
 // Sample text for the offline demo button (invented rooms written in the server's real layout).
 export const DEMO = [
-  '奇岩城中央廣場 - \n    這裡是奇岩城最熱鬧的中央廣場，石板鋪成的街道向四方延伸，廣場中央有一座\n噴泉，旁邊立著一塊招牌，幾棵樹在微風中搖曳。\n    這裡明顯的出口是 north、south、east 和 west。\n  城門衛兵(guard)\n  流浪的吟遊詩人(bard)\n  一隻野狗(dog)\n> ',
+  '奇岩城中央廣場 - \n    這裡是奇岩城最熱鬧的中央廣場，石板鋪成的街道向四方延伸，廣場中央有一座\n噴泉，旁邊立著一塊招牌，幾棵樹在微風中搖曳。\n    這裡明顯的出口是 north、south、east 和 west。\n  城門衛兵(guard)\n  城門衛兵(guard)\n  短劍(shortsword)\n  流浪的吟遊詩人(bard)\n  一隻野狗(dog)\n> ',
   '城北森林 - \n    茂密的森林，高大的樹木遮住了陽光，草叢中似乎有東西在移動。\n    這裡明顯的出口是 south 和 northeast。\n  \x1b[1;31m兇猛的野狼(wolf)\x1b[2;37;0m\n  一隻蝙蝠(bat)\n  巨大的蜘蛛(spider)\n> ',
   '幽暗的洞穴 - \n    潮濕陰冷的洞穴，地上散落著白骨，深處傳來低沉的吼聲。\n    這裡明顯的出口是 southwest、up 和 down。\n  \x1b[1;31m紅龍(dragon)\x1b[2;37;0m\n  骷髏戰士(skeleton)\n  冒險者的屍體(corpse)\n  藤木小盾牌(Small shield)\n  米娜娃魔力閃戒(The magic ring of minerva)\n> ',
-  '你用短劍往骷髏戰士的身體斜砍, 結果造成一處傷害 !\n( 骷髏戰士傷到不少地方, 流了許多鮮血。 )\n骷髏戰士的短劍刺向你, 但是沒有造成任何傷害。\n你倒握短劍, 順勢往骷髏戰士的頭部一刺, 結果造成一處嚴重的傷害 !\n( 骷髏戰士已經奄奄一息了。 )\n\n骷髏戰士死了。\n\n(你得到 69 點經驗。)\n',
+  '你用短劍往骷髏戰士的身體斜砍, 結果造成一處傷害 !\n( 骷髏戰士傷到不少地方, 流了許多鮮血。 )\n骷髏戰士的短劍刺向你, 結果造成一處傷害 !\n( 你受了幾處傷, 但是沒有傷到要害。 )\n你倒握短劍, 順勢往骷髏戰士的頭部一刺, 結果造成一處嚴重的傷害 !\n( 骷髏戰士已經奄奄一息了。 )\n\n骷髏戰士死了。\n\n(你得到 69 點經驗。)\n',
   '查克銀行 - \n    你走進了一家銀行, 行員們正在櫃檯後忙碌著, 幾個渾身肌肉的警衛正\n狠狠的盯著你看。這裏是世界聞名的大奸商查克開的銀行。你可以在這裏存(deposit)/提(withdraw)款和轉帳(transfer), 牆上掛著一面銅牌(plaque)。\n    這裡唯一的出口是 \x1b[1mnorth\x1b[2;37;0m。\n  酸甜苦辣留言板(Board) [ 35 張留言﹐35 張未讀 ]\n  短劍(Shortsword)\n  十枚金幣(Gold)\n> ',
   '你撿起十枚金幣。\n> ',
   // shop listing in the captured layout, stopped by the pager, then its second page
