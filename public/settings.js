@@ -37,6 +37,7 @@ async function runQuick(i) {
   const b = $('quick').children[i];
   b?.classList.add('ran'); setTimeout(() => b?.classList.remove('ran'), 300);
   const r = await post('/api/quick', { n: i }).catch(() => null);
+  if (r?.ok) dispatchEvent(new CustomEvent('kk:quick', { detail: me.quick[i].commands }));
   if (!r?.ok) b && (b.title = `${quickKey(i)}：${me.quick[i].commands}（未送出：尚未連線或尚未登入）`);
   $('cmd').focus();
 }

@@ -3,6 +3,7 @@ import { RoomScene } from './scene.js';
 import { sid, q, post } from './api.js';
 import { initSettings } from './settings.js';
 import { initMap } from './mapview.js';
+import { initMacro } from './macro.js';
 import { MudParser, hash, shopLine, dirOf, isItem } from './parser.js';
 import { DECOR_WORDS } from './chess.js';
 import { PARSER, DIRS, DEFAULT_TERRAIN, MONSTERS, PEOPLE, PEOPLE_DEFAULT, FEMALE, ITEMS, ACTIONS, CORPSE, CORPSE_MODEL, ROOM_WORD, ROOM_VERBS, SHOP, INVENTORY, BOARD, SPELL_VOICE, DEMO, DEMO_CMD } from './config.js';
@@ -13,6 +14,7 @@ const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem('k
 let manifest = { monsters: {}, players: [], gobs: {}, bgm: [] };
 let connected = false, echoOff = false;
 const scene = new RoomScene($('gl'), $('overlay'), { exit: dir => command(dir), thing: (t, el) => menu(t, el) });
+scene.setStyle(store.get('style', 'chess'));      // before the replayed output draws the room; checked again once the manifest is in
 
 // ------------------------------------------------------------------ click menu on a name tag
 const pop = $('menu');
@@ -40,7 +42,13 @@ function menu(t, el) {
   pop.style.top = Math.min(v.height - pop.offsetHeight - 4, r.bottom - v.top + 3) + 'px';
 }
 addEventListener('click', () => { pop.hidden = true; });
-addEventListener('keydown', e => { if (e.key === 'Escape') pop.hidden = true; });
+// Esc closes the click menu, then the open panels (inventory, shop, board); dialogs close themselves
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+  if (!pop.hidden) { pop.hidden = true; return; }
+  if (!$('board').hidden) $('boardClose').click();
+  $('inv').hidden = true; $('shop').hidden = true;
+});
 
 // ------------------------------------------------------------------ terminal (ANSI -> HTML)
 const term = $('term');
@@ -138,7 +146,7 @@ const parser = new MudParser({
   post(p, more, waiting) { showPost(p, more, waiting); },
   cast(spell, sex) { if (!replaying) spellVoice(spell, sex); },
   thing: l => { const t = parseThing(l); if (t) t.uid = ++uid; return t; },
-  newcomer: name => { const t = classify(name, ''); if (t) t.uid = ++uid; return t; },      // walked in: the id is unknown until the next look
+  newcomer: name => { const t = classify(name, nameIds.get(name) || ''); if (t) t.uid = ++uid; return t; },      // walked in: the id is known only if the name was seen before
 });
 let uid = 0, replaying = false, hpMax = 0;
 // your HP from a combat description: only a band, so it is shown as an estimate until the next exact "hp"/"score"
@@ -152,6 +160,7 @@ function selfCondition(pct) {
 let female = store.get('female.' + sid, false);
 const feed = plain => {
   if (!female && /(?:^|\n)(?:> )?妳/.test(plain)) { female = true; store.set('female.' + sid, true); if (scene.style === 'chess') scene.setPlayer('', true); }
+  learnNames(plain);
   parser.feed(plain);
 };
 
@@ -378,32 +387,50 @@ const drawMap = () => mapUI.redraw();
 // typed commands, kept per account in this browser so a reload keeps them (never what is typed while the server hides echo)
 const HISTORY_KEY = 'history.' + sid, HISTORY_MAX = 300;
 const input = $('cmd'), history = store.get(HISTORY_KEY, []).filter(x => typeof x === 'string').slice(-HISTORY_MAX); let hi = history.length;
-function command(text) {
+function command(text, fromMacro = false) {
   if (!connected) { sys('尚未連線'); return Promise.resolve(); }
+  if (!fromMacro && !echoOff) macro.note(text);        // recorded as typed: "#1" stays "#1" and is looked up again on playback
   return post('/api/send', { text: expandIds(text) }).catch(() => sys('送出失敗'));
 }
+// ------------------------------------------------------------------ recorder: commands and their timing, played back with the same gaps
+const macro = initMacro({ store, sid, sys, send: t => command(t, true), canSend: () => connected && !echoOff });
+addEventListener('kk:quick', e => { if (!echoOff) macro.note(e.detail); });   // quick buttons are sent by the proxy
 
 // ------------------------------------------------------------------ id list: #0 = you, #1.. = what is in the room (people first, then things)
-const ID_MAX = 15;
-let myId = '', idRefs = [], idSig = '';
+const ID_MAX = 15, GREET = 99;
+let myId = '', idRefs = {}, idSig = '';
+// variables set by events (#99 = whoever last greeted you), kept per account
+const idVars = store.get('idvars.' + sid, {});
 function idEntries() {
   const out = [{ ref: myId || 'me', name: '你自己', kind: 'me' }];
   const things = room?.things || [], seen = {};
   // the MUD counts same-id things in the order it lists them: the second guard is "guard 2"
+  for (const t of things) if (!t.id && t.kind !== 'item' && t.kind !== 'corpse') t.id = idOfName(t.name);      // walked in earlier: the id may be known by now
   const refs = things.map(t => { if (!t.id) return null; seen[t.id] = (seen[t.id] || 0) + 1; return seen[t.id] > 1 ? `${t.id} ${seen[t.id]}` : t.id; });
   const rank = t => (t.kind === 'person' || t.kind === 'monster' ? 0 : t.kind === 'item' ? 1 : 2);
   things.map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
     .forEach(({ t, i }) => out.push({ ref: refs[i], name: t.name, kind: t.kind }));
-  return out.slice(0, ID_MAX);
+  const list = out.slice(0, ID_MAX).map((e, n) => ({ ...e, n }));
+  const g = idVars[GREET];
+  if (g && !g.id && (g.id = idOfName(g.name))) store.set('idvars.' + sid, idVars);      // learnt after the greeting
+  if (g) list.push({ n: GREET, ref: g.id, name: `${g.name}（向你打招呼）`, kind: 'greet' });
+  return list;
 }
 function drawIds() {
   const list = idEntries(), sig = JSON.stringify(list), box = $('idList');
-  idRefs = list.map(e => e.ref);
+  idRefs = Object.fromEntries(list.map(e => [e.n, e.ref]));
   box.hidden = !$('idToggle').checked;
+  $('view').classList.toggle('ids', !box.hidden);         // the list gets its own column, the scene moves right
+  // the minimap joins that column; without it, it floats in the scene's top-right corner
+  const mb = document.querySelector('.mapbox'), home = box.hidden ? document.querySelector('.main') : $('side');
+  if (mb.parentElement !== home) home.prepend(mb);
   if (sig === idSig) return; idSig = sig;
+  // the proxy runs triggers, aliases and quick buttons: give it the same #0..#14
+  const nums = list.filter(e => e.n < ID_MAX && e.ref);
+  post('/api/ids', { ids: Object.fromEntries(nums.map(e => [e.n, e.ref])), names: Object.fromEntries(nums.map(e => [e.n, e.name])) }).catch(() => {});
   box.textContent = '';
-  list.forEach((e, n) => {
-    const row = document.createElement('div'); row.className = e.kind;
+  list.forEach(e => {
+    const n = e.n, row = document.createElement('div'); row.className = e.kind;
     row.title = `${e.name}（${e.ref || '名稱未知，先查看四周'}）：點一下把 #${n} 填入指令列`;
     const b = document.createElement('b'); b.textContent = '#' + n;
     const s = document.createElement('span'); s.textContent = e.ref || '?';
@@ -415,6 +442,33 @@ function drawIds() {
 }
 // "look #1" -> "look guard"; numbers not in the list (and #wait) are left alone
 function expandIds(text) { if (echoOff) return text; return text.replace(/#(\d{1,2})(?!\d)/g, (m, n) => idRefs[+n] || m); }
+
+// ------------------------------------------------------------------ names -> ids, learnt from every "名字(Id)" the server prints
+// (room lists, score, who, ...). Shared by all account tabs in this browser, so one character's "score" teaches the others.
+const nameIds = new Map(Object.entries(store.get('nameIds', {})));
+let namesTimer = 0;
+function learnNames(plain) {
+  let added = false;
+  for (const m of plain.matchAll(/([^\s「」『』()（）:：,，。!！?？>]{1,12})\(([A-Za-z][A-Za-z']{1,19}(?: [A-Za-z][A-Za-z']*){0,3})\)/g)) {
+    const name = m[1], id = m[2].toLowerCase();
+    if (nameIds.get(name) !== id) { nameIds.delete(name); nameIds.set(name, id); added = true; }
+  }
+  if (!added) return;
+  while (nameIds.size > 3000) nameIds.delete(nameIds.keys().next().value);
+  clearTimeout(namesTimer); namesTimer = setTimeout(() => store.set('nameIds', Object.fromEntries(nameIds)), 1000);
+}
+function idOfName(name) {
+  const here = room?.things.find(t => t.id && t.name === name);
+  return here?.id || nameIds.get(name) || '';
+}
+// another account's tab learnt some names: take them over at once
+addEventListener('storage', e => {
+  if (e.key !== 'kk.nameIds' || !e.newValue) return;
+  try { for (const [k, v] of Object.entries(JSON.parse(e.newValue))) if (!nameIds.has(k)) nameIds.set(k, v); } catch { /* ignore */ }
+});
+// the room description folds to one line (click it), remembered in this browser
+$('roomText').classList.toggle('fold', store.get('descFold', false));
+$('roomText').onclick = e => { if (getSelection()?.toString()) return; store.set('descFold', $('roomText').classList.toggle('fold')); };
 $('idToggle').checked = store.get('idlist', true);
 $('idToggle').onchange = () => { store.set('idlist', $('idToggle').checked); drawIds(); };
 setInterval(drawIds, 400);
@@ -467,6 +521,7 @@ es.onmessage = e => {
   else if (m.t === 'sys') sys(m.d);
   else if (m.t === 'status') setStatus(m);
   else if (m.t === 'replayEnd') { replaying = false; mapUI.replayEnd(); }
+  else if (m.t === 'vars') { for (const k of Object.keys(idVars)) delete idVars[k]; Object.assign(idVars, m.vars || {}); store.set('idvars.' + sid, idVars); idSig = ''; drawIds(); }
 };
 // output replayed after a reload refreshes the panels' contents but does not pop them open
 es.onopen = () => { replaying = true; mapUI.replayStart(); };
@@ -508,9 +563,11 @@ $('voice').onchange = () => store.set('voice', $('voice').checked);
     sys('找不到遊戲素材，使用內建的西洋棋畫面（見 README）。');
   }
   else st.value = store.get('style', 'chess');
-  scene.setStyle(st.value); $('model').disabled = st.value === 'chess';
+  // the character model only matters for the official picture: hide its picker otherwise (saves toolbar room)
+  const modelUI = () => { $('model').parentElement.hidden = st.value === 'chess'; };
+  scene.setStyle(st.value); modelUI();
   st.onchange = async () => {
-    store.set('style', st.value); scene.setStyle(st.value); $('model').disabled = st.value === 'chess';
+    store.set('style', st.value); scene.setStyle(st.value); modelUI();
     await scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female);
     if (room) { scene.setRoom(room, null); scene.setThings(room.things); }
   };
@@ -520,7 +577,14 @@ $('voice').onchange = () => store.set('voice', $('voice').checked);
   sel.onchange = () => { store.set('model', sel.value); scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female); };
   if (sel.value || scene.style === 'chess') await scene.setPlayer(`gltf/bin/player/${sel.value}.glb`, female);
   if (!room) scene.setRoom({ name: '', exits: [], terrain: DEFAULT_TERRAIN, decor: [] }, null);
+  else { scene.setRoom(room, null); scene.setThings(room.things); }      // drawn while loading, maybe in the wrong style
   drawMap();
+  // another tab changed the picture style: follow it
+  addEventListener('storage', e => {
+    if (e.key !== 'kk.style' || !e.newValue) return;
+    const v = JSON.parse(e.newValue);
+    if (v !== st.value && !st.querySelector(`[value="${v}"]`)?.disabled) { st.value = v; st.onchange(); }
+  });
 })();
 initSettings();
 input.focus();

@@ -63,6 +63,9 @@ exports.start = (port = 4999) => {
         else if (line === 'die') out('\n新手冒險者死了。\n\n(你得到 69 點經驗。)\n> ');
         else if (line === 'get all from corpse') out('你從新手冒險者的屍體中拿出五枚金幣。\nOk。\n> ');
         else if (line === 'kick') sock.destroy();
+        else if (line === 'meet') out('【 冒險者 】「旅人」小雨(Rainy) 正在發呆。\n> ');
+        else if (line === 'greet') out('小雨走了過來。\n小雨很熱情地對你打招呼。\n> ');
+        else if (line === 'stranger') out('阿路走了過來。\n阿路很熱情地對你打招呼。\n> ');
         else if (line === 'flood') out(Array.from({ length: 40 }, (_, k) => `洪水 ${k}`).join('\n') + '\n> ');
         else out('What?\n> ');
       }

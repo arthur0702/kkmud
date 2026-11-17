@@ -122,6 +122,8 @@ export class MudParser {
       this.post = { n: +bi[1], title: bi[2].trim(), author: bi[3], id: bi[4].toLowerCase(), date: bi[5].trim(), lines: [] };
       return;
     }
+    const gr = PARSER.greet.exec(l);                            // "小雨很熱情地對妳打招呼。"
+    if (gr && !/^[你妳]/.test(gr[1])) this.cb.greet?.(gr[1].trim());
     const inc = PARSER.incant.exec(l);                          // your spell went off: "妳喃喃唸道 : ..." right after "cast float"
     const cast = /^cast\s+['"]?([a-z_]+)/i.exec(this.lastCmd);
     if (inc && cast && Date.now() - this.lastAt < 15000) { this.cb.cast?.(cast[1].toLowerCase(), inc[1] === '妳' ? 'f' : 'm'); this.lastCmd = ''; }

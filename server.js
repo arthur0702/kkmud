@@ -4,6 +4,7 @@
 // per-account automation (see lib/session.js). Several accounts can be connected at once: one page per account (?s=<id>).
 const http = require('http'), fs = require('fs'), path = require('path');
 const { Session } = require('./lib/session');
+const names = require('./lib/names');
 
 const PORT = +process.argv[2] || 8140;
 const DEFAULT_MUD = { host: process.env.MUD_HOST || 'kks.muds.idv.tw', port: +process.env.MUD_PORT || 4000 };
@@ -14,6 +15,7 @@ const LOGS = path.resolve(process.env.KK_LOGS || path.join(__dirname, 'logs'));
 const THREE_LOCAL = path.join(ASSETS, 'viewer', 'vendor', 'three');
 const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.160.0/';
 fs.mkdirSync(LOGS, { recursive: true }); fs.mkdirSync(DATA, { recursive: true });
+names.load(DATA, LOGS);                                         // name -> id book (lib/names.js)
 
 // ---------------------------------------------------------------- profiles (accounts + their automation), stored locally
 const PROFILE_FILE = path.join(DATA, 'profiles.json');
@@ -154,6 +156,7 @@ http.createServer(async (req, res) => {
       for (const m of s.backlog) res.write('data: ' + JSON.stringify(m) + '\n\n');
       res.write('data: ' + JSON.stringify({ t: 'replayEnd' }) + '\n\n');      // everything after this is live
       res.write('data: ' + JSON.stringify(s.status()) + '\n\n');
+      res.write('data: ' + JSON.stringify({ t: 'vars', vars: s.vars }) + '\n\n');
       s.clients.add(res);
       const ping = setInterval(() => res.write(': ping\n\n'), 15000);
       req.on('close', () => { clearInterval(ping); s.clients.delete(res); });
@@ -163,6 +166,11 @@ http.createServer(async (req, res) => {
     if (post && url === '/api/connect') { s.connect(true); return json(res, { ok: true }); }
     if (post && url === '/api/disconnect') { s.disconnect(); return json(res, { ok: true }); }
     if (post && url === '/api/send') return json(res, { ok: s.userSend(String(d.text ?? '').replace(/[\r\n]/g, '').slice(0, 2000)) });
+    if (post && url === '/api/ids') {                          // the page's #0..#14 list, so triggers and quick buttons can use #n too
+      const clean = o => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => /^\d{1,2}$/.test(k) && typeof v === 'string').map(([k, v]) => [k, str(v, 60)]));
+      s.setIds(clean(d.ids), clean(d.names)); return json(res, { ok: true });
+    }
+    if (url === '/api/names') return json(res, Object.fromEntries(names.book));
     if (post && url === '/api/quick') {                        // run quick button n of this account, as stored (the page only says which)
       const q = profiles[sid]?.quick?.[d.n | 0];
       return json(res, { ok: !!q?.commands && s.userRun(q.commands) });

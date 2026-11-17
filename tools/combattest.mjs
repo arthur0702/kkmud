@@ -17,6 +17,12 @@ const got = conds('> \n( 你似乎受了點傷, 但是看起來並不要緊。 )
 check('your own condition is reported (你 and 妳)', got.slice(0, 3).join() === '你:90,你:75,你:50' && got[5] === '妳:75', got.join());
 check('渾身是血 is a level of its own, between 到處都是傷口 and 奄奄一息', got[3] === '巨蛙:15' && got[4] === '巨蛙:5', got.join());
 
+// someone greets you -> their name (lines captured from the server)
+const greets = [];
+const gp = new MudParser({ greet: n => greets.push(n) });
+gp.feed('> \n妳很熱情地對妳自己打招呼。\n你很熱情地對小月打招呼。\n> 阿月很熱情地對妳打招呼。\n小雨很熱情地對你打招呼。\n> ');
+check('a greeting to you gives the greeter; greeting yourself or others does not', greets.join() === '阿月,小雨', greets.join());
+
 for (const f of process.argv.slice(2)) {
   const all = conds(fs.readFileSync(f, 'utf8').replace(/\x1b\[[\d;]*[A-Za-z]/g, ''));
   console.log(`      ${f}: ${all.length} descriptions, ${all.filter(x => /^[你妳]:/.test(x)).length} about you`);

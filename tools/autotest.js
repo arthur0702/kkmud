@@ -16,9 +16,10 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  
   const prof = await post('/api/profile', { name: '測試', host: '127.0.0.1', port: 4999, user: 'tester', password: 'testpass', autoLogin: true, autoReconnect: true,
     aliases: [{ name: 'gc', commands: 'get all from corpse' }, { name: 'two', commands: 'look;#wait 200;hp' }, { name: 'say2', commands: 'say %1 and %*' },
       { name: 'many', commands: Array(40).fill('poke').join(';') }],
-    triggers: [{ enabled: true, pattern: '死了。', regex: false, commands: 'gc', cooldown: 1 }, { enabled: true, pattern: '^洪水 (\\d+)$', regex: true, commands: 'echo %1', cooldown: 0.2 }],
+    triggers: [{ enabled: true, pattern: '死了。', regex: false, commands: 'gc', cooldown: 1 }, { enabled: true, pattern: '^洪水 (\\d+)$', regex: true, commands: 'echo %1', cooldown: 0.2 },
+      { enabled: true, pattern: '很熱情地對你打招呼', regex: false, commands: 'cast bless on #99', cooldown: 0.2 }],
     timers: [{ enabled: true, every: 5, commands: 'hp' }],
-    quick: [{ label: '看看', commands: 'look;#wait 200;hp' }, { label: '撿屍', commands: 'gc' }, ...Array(8).fill({}), { label: 'x', commands: 'extra' }, { label: 'y', commands: 'extra' }] });
+    quick: [{ label: '看看', commands: 'look;#wait 200;hp' }, { label: '撿屍', commands: 'gc' }, { label: '看一號', commands: 'look #1' }, ...Array(7).fill({}), { label: 'x', commands: 'extra' }, { label: 'y', commands: 'extra' }] });
   const s = prof.id;
   check('profile saved without exposing the password', prof.hasPassword === true && prof.password === undefined);
   check('quick buttons: always exactly ten slots', prof.quick.length === 10 && prof.quick[0].label === '看看' && !JSON.stringify(prof.quick).includes('extra'));
@@ -50,6 +51,17 @@ const check = (name, ok, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  
   check('quick button: empty or missing slot sends nothing', got().at(-1) === 'get all from corpse' && r.ok === false && r2.ok === false);
   const kept = await post('/api/profile', { ...prof, quick: undefined });
   check('saving a profile without quick keeps the buttons', kept.quick[0].commands === 'look;#wait 200;hp');
+
+  // #99 = whoever greeted you; triggers and quick buttons fill in #n before sending
+  await post('/api/send', { s, text: 'meet' }); await sleep(300);
+  await post('/api/send', { s, text: 'greet' }); await sleep(500);
+  check('trigger "cast bless on #99" uses the greeter\'s id learnt from 小雨(Rainy)', got().includes('cast bless on rainy') && !got().some(x => x.includes('#99')), got().slice(-2).join());
+  check('the page is told about #99', events.some(e => e.t === 'vars' && e.vars?.[99]?.id === 'rainy'));
+  await post('/api/send', { s, text: 'stranger' }); await sleep(500);
+  check('a greeter whose id is unknown: the command is skipped, not sent with "#99"', !got().some(x => x.includes('#99')) && stream().includes('#99 還不知道是誰'));
+  await post('/api/ids', { s, ids: { 0: 'tester', 1: 'guard' }, names: { 0: '你自己', 1: '城門衛兵' } });
+  await post('/api/quick', { s, n: 2 }); await sleep(400);
+  check('quick button "look #1" uses the page\'s id list', got().at(-1) === 'look guard', got().at(-1));
 
   const before = got().filter(x => x === 'get all from corpse').length;
   await post('/api/send', { s, text: 'die' }); await sleep(500);

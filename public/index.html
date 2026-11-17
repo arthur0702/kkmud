@@ -20,7 +20,14 @@
   header input[type=checkbox] { accent-color: var(--accent); margin: 0; }
   .grow { flex: 1; }
 
-  .view { position: relative; min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: #0b0c0f; }
+  .view { position: relative; min-width: 0; min-height: 0; border-right: 1px solid var(--line); background: #0b0c0f; display: flex; flex-direction: column; }
+  /* the room text sits above the scene and the id list beside it, so neither covers the game view */
+  .main { flex: 1; min-height: 0; display: flex; position: relative; }
+  .stage { flex: 1; min-width: 0; position: relative; }
+  #side { flex: none; width: 220px; display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 10px 12px; min-height: 0; border-right: 1px solid var(--line); }
+  .view:not(.ids) #side { position: absolute; left: 0; bottom: 0; z-index: 2; border-right: 0; pointer-events: none; width: 214px; }
+  #side .bars { margin-top: auto; }
+  #side .mapbox { position: static; flex: none; align-self: center; margin-top: 2px; }
   #gl { display: block; width: 100%; height: 100%; }
   #overlay { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
   #overlay > * { pointer-events: auto; position: absolute; left: 0; top: 0; }
@@ -69,27 +76,32 @@
   #shopMore { margin: 4px; background: #2a2413; border-color: #8a6a2a; color: #ffe2a3; }
   .exit { min-width: 34px; padding: 3px 8px; border-radius: 14px; background: #1b2a1dcc; border-color: #4e8a57; color: #c9f2cf; font-weight: 600; }
   .exit.side { position: static !important; transform: none !important; }
-  .hud { position: absolute; left: 12px; top: 10px; right: 190px; pointer-events: none; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
-  #roomName { font-size: 17px; font-weight: 600; color: #ffe2a3; }
-  #roomDesc { color: #c3c9d3; max-height: 4.4em; overflow: hidden; max-width: 60ch; }
+  .hud { flex: none; padding: 5px 12px; border-bottom: 1px solid var(--line); }
+  .hud:has(#roomName:empty) { display: none; }
+  #roomText { max-height: 25vh; overflow-y: auto; cursor: pointer; line-height: 1.4; }
+  #roomText.fold { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #roomName { font-size: 15px; font-weight: 600; color: #ffe2a3; margin-right: .7em; }
+  #roomDesc { color: #c3c9d3; }
+  #roomCmds:empty { display: none; }
   #roomCmds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; pointer-events: auto; text-shadow: none; }
   #roomCmds button { padding: 2px 9px; border-radius: 12px; background: #2a2413dd; border-color: #8a6a2a; color: #ffe2a3; }
   #roomCmds button.noun { background: #18222edd; border-color: #3f5f86; color: #cfe3ff; }
   #roomCmds button:hover { border-color: var(--accent); }
-  .bars { position: absolute; left: 12px; bottom: 10px; display: grid; gap: 4px; width: 190px; }
-  #idList { position: absolute; left: 12px; bottom: 52px; max-height: calc(100% - 190px); overflow-y: auto; min-width: 120px; max-width: 240px; padding: 4px 0;
+  .bars { display: grid; gap: 4px; }
+  #idList { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 4px 0;
             background: #000a; border: 1px solid var(--line); border-radius: 6px; font: 12px/1.5 Consolas, 'Cascadia Mono', monospace; }
   #idList[hidden] { display: none; }
   #idList div { display: flex; gap: 6px; padding: 0 8px; white-space: nowrap; cursor: pointer; }
   #idList div:hover { background: #ffffff14; }
   #idList b { color: #ffd75e; font-weight: normal; min-width: 2.2em; }
+  #idList .greet { border-top: 1px solid var(--line); margin-top: 2px; } #idList .greet span { color: #8ab8ff; }
   #idList .me span { color: #9fe6a8; } #idList .monster span { color: #ff9a8f; } #idList .item span, #idList .corpse span { color: #c9b98f; }
   #idList i { color: var(--dim); font-style: normal; overflow: hidden; text-overflow: ellipsis; max-width: 9em; }
   .bar { position: relative; height: 15px; background: #0009; border: 1px solid #fff2; border-radius: 4px; overflow: hidden; }
   .bar i { position: absolute; inset: 0 auto 0 0; background: #b8433c; } #mp i { background: #3c6fb8; }
   .bar span { position: absolute; inset: 0; font-size: 11px; line-height: 13px; text-align: center; }
   .bar.est i { background: repeating-linear-gradient(135deg, #b8433c 0 6px, #9a3631 6px 12px); }
-  .mapbox { position: absolute; right: 10px; top: 10px; background: #000a; border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
+  .mapbox { position: absolute; right: 8px; top: 6px; z-index: 2; background: #000a; border: 1px solid var(--line); border-radius: 6px; padding: 4px; }
   #map { display: block; width: 168px; height: 168px; cursor: zoom-in; }
   #mapInfo { color: var(--dim); font-size: 11px; text-align: center; }
   #sideExits { display: flex; flex-wrap: wrap; gap: 4px; max-width: 168px; justify-content: center; }
@@ -139,8 +151,19 @@
   #mapBig { flex: 1; min-height: 0; width: 100%; display: block; cursor: grab; background: #0e1013; touch-action: none; }
   #mapBig:active { cursor: grabbing; }
   #mapHover { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
+  #recBtn.rec, #macroBtn.rec { border-color: #d0554f; color: #ff9a8f; background: #2e1717; }
+  .mcwin { display: flex; flex-direction: column; max-height: calc(100vh - 42px); }
+  .mcwin .dhead input { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 4px 8px; font: inherit; width: 180px; }
+  .mcwin .pane { flex: 1; min-height: 0; }
+  .mcwin input.w-s { width: 70px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; font: inherit; }
+  .mcwin label.chk { display: flex; align-items: center; gap: 5px; color: var(--dim); white-space: nowrap; }
+  .item-row.mc .key { min-width: 2em; text-align: right; font: 12px Consolas, monospace; color: var(--dim); }
+  .item-row.mc .at { min-width: 5em; text-align: left; }
+  .item-row.mc.now { background: #2a2413; border-radius: 5px; outline: 1px solid var(--accent); }
+  .item-row.mc input.w-l { font-family: "MingLiU", Consolas, monospace; }
   ::-webkit-scrollbar { width: 9px; } ::-webkit-scrollbar-thumb { background: #3a404b; border-radius: 5px; }
-  @media (max-width: 860px) { body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); } .view { border-right: 0; border-bottom: 1px solid var(--line); } }
+  @media (max-width: 1100px) { header > b { display: none; } header { gap: 7px; padding: 5px 10px; } }
+  @media (max-width: 860px) { body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1.6fr) minmax(0, 1fr); } .view { border-right: 0; border-bottom: 1px solid var(--line); } }
 </style>
 <script type="importmap">
 { "imports": { "three": "/assets/viewer/vendor/three/build/three.module.js", "three/addons/": "/assets/viewer/vendor/three/examples/jsm/" } }
@@ -162,14 +185,24 @@
   <button id="lookBtn" title="送出 look，重新讀取這個房間（數字鍵盤 5）">查看四周</button>
   <button id="invBtn" title="送出 i，打開背包（數字鍵盤 0 或 /）">背包</button>
   <button id="boardBtn" hidden>留言板</button>
+  <button id="recBtn" title="開始錄製：記下之後送出的指令和間隔時間">● 錄製</button>
+  <button id="macroBtn" title="開啟錄製清單：播放、調整指令與時間">▶ 播放</button>
   <button id="demo" title="用內建的示範文字預覽圖形畫面，不會連線">示範</button>
 </header>
 
 <section class="view" id="view">
-  <canvas id="gl"></canvas>
-  <div id="overlay"></div>
-  <div class="hud"><div id="roomName"></div><div id="roomDesc"></div><div id="roomCmds"></div></div>
-  <div class="mapbox"><canvas id="map" width="168" height="168"></canvas><div id="mapInfo"></div><div id="sideExits"></div></div>
+  <div class="hud"><div id="roomText" title="點一下收起／展開房間描述"><span id="roomName"></span><span id="roomDesc"></span></div><div id="roomCmds"></div></div>
+  <div class="main">
+    <div id="side">
+      <div id="idList" hidden></div>
+      <div class="bars">
+        <div class="bar" id="hp" hidden><i></i><span></span></div>
+        <div class="bar" id="mp" hidden><i></i><span></span></div>
+      </div>
+    </div>
+    <div class="stage"><canvas id="gl"></canvas><div id="overlay"></div></div>
+    <div class="mapbox"><canvas id="map" width="168" height="168"></canvas><div id="mapInfo"></div><div id="sideExits"></div></div>
+  </div>
   <div id="menu" hidden></div>
   <div id="shop" class="panel" hidden>
     <div class="head"><b id="shopTitle">商品清單</b><button id="shopClose" title="關閉">✕</button></div>
@@ -189,11 +222,6 @@
       <div id="postBody"></div>
       <div class="nav"><button id="postBack">← 列表</button><button id="postPrev">上一篇</button><button id="postNext">下一篇</button><span class="grow"></span><button id="postMore" hidden>下一頁</button></div>
     </div>
-  </div>
-  <div id="idList" hidden></div>
-  <div class="bars">
-    <div class="bar" id="hp" hidden><i></i><span></span></div>
-    <div class="bar" id="mp" hidden><i></i><span></span></div>
   </div>
 </section>
 
@@ -225,6 +253,32 @@
       <input id="mapFile" type="file" accept=".json,application/json" hidden>
       <button id="mapAreaDel" class="danger" title="刪除這個區域">刪除區域</button>
       <button id="mapClear" class="danger" title="清除整張地圖">全部清除</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="macroDlg">
+  <div class="mcwin">
+    <div class="dhead">
+      <b>錄製清單</b>
+      <select id="mcList" title="選擇一段錄製"></select>
+      <input id="mcName" maxlength="40" title="名稱">
+      <span class="grow"></span>
+      <button id="mcClose" class="x" title="關閉">✕</button>
+    </div>
+    <div class="pane">
+      <p class="note">每一列是一個指令：左邊是<b>等待秒數</b>（上一個指令送出後再等多久），<code>@</code> 是從開始播放算起的時間。指令可用 <code>;</code> 分隔、<code>#1</code> 代表 ID 列表、也能用別名。</p>
+      <p class="note" id="mcEmpty">還沒有錄製。按上方的「● 錄製」開始，或按「＋ 新增」自己寫一段。</p>
+      <div class="list" id="mcRows"></div>
+      <div class="rowbtn"><button type="button" id="mcAdd">＋ 新增一列</button>
+        <span class="grow"></span>
+        <label class="chk" title="所有等待秒數乘上這個倍數，例如 0.5 快一倍、2 慢一倍">時間 × <input id="mcScale" type="number" min="0.1" step="0.1" value="0.5" class="w-s"></label><button type="button" id="mcScaleGo">套用</button></div>
+    </div>
+    <div class="dfoot">
+      <button type="button" id="mcNew">＋ 新增</button><button type="button" id="mcCopy">複製</button><button type="button" id="mcDel" class="danger">刪除</button>
+      <span class="grow"></span><span id="mcTotal" class="note"></span>
+      <label class="chk" title="0 = 一直重複到按停止">重複 <input id="mcTimes" type="number" min="0" max="9999" value="1" class="w-s"> 次</label>
+      <button type="button" id="mcPlay" class="primary">▶ 播放</button>
     </div>
   </div>
 </dialog>

@@ -46,6 +46,8 @@ export const PARSER = {
   //   妳喃喃唸道 : 摩里多納 ～～ 賀魯 ...      妳低頭喃喃唸道 : 以大地之神 - 凱亞的聖名, 降福於吾身吧 !      你高舉雙手 : 戰神啊 ! ...
   // Group 1 is 你 (male) or 妳 (female). A failed cast ("你要有目標才能施法。") has no colon, so it stays silent.
   incant: /^([你妳])[^\s:：「」,，。!！]{1,10}\s*[:：]\s*\S/,
+  // Someone greets you (captured: "小雨很熱情地對妳打招呼。"); group 1 is their name. Their id goes into #99.
+  greet: /^(.{1,20}?)很熱情地對[你妳]打招呼。\s*$/,
   // A move that did not happen.
   blocked: /這個方向沒有出路|沒有這個方向|你不能往|擋住了你|門是關著的|^What\?$/,
   exitSplit: /[、,，\s和及與跟。.\[\]【】()（）]+/,
@@ -247,6 +249,8 @@ export const DEMO = [
   '這是一個供人留下建議的留言板。\n留言板的使用方法請見 help board。\n\x1b[1;33m[ 1]\x1b[2;37;0m  回來玩了, 還有人在嗎?                      阿星(astar) (10/2  09:20 2023)\n\x1b[1;33m[ 2]\x1b[2;37;0m  Re : 回來玩了, 還有人在嗎?              \x1b[1;35m林小花\x1b[2;37;0m(lily) (10/2  11:44 2023)\n\x1b[1;33m[ 3]\x1b[2;37;0m  新手請問練功地點                      小明(ming) (11/3  20:15 2026)\n> ',
   '[2] Re : 回來玩了, 還有人在嗎?                      \x1b[1;35m林小花\x1b[2;37;0m(lily)(Mon Oct 2)\n' + '-'.repeat(70) + '\n\x1b[32m\n>在阿星(astar)的留言中提到 : \n> 好久沒上線了，還有人在玩嗎？\n\x1b[2;37;0m\n有喔！冒險者之家每天都有人。\n== 未完繼續 \x1b[1;33m60%\x1b[2;37;0m == (ENTER 繼續下一頁﹐q 離開﹐b 前一頁)',
   '\n晚上人比較多，歡迎回來。\n\n== 本文完畢，請按任意鍵繼續 ...',
+  // someone greets you (captured phrasing, invented player): the "名字(Id)" seen earlier gives their id, which goes into #99
+  '\n> \n【 冒險者 】「旅人」小雨(Rainy) 正在附近閒逛。\n小雨走了過來。\n小雨說道 : 嗨 !\n小雨很熱情地對你打招呼。\n> ',
 ];
 // the command each demo step pretends to answer (by index); steps not listed continue the previous one or answer nothing
-export const DEMO_CMD = { 0: '', 1: 'north', 2: 'northeast', 3: '', 4: 'south', 5: '', 6: 'list', 8: '', 9: '', 10: '', 11: 'i', 12: 'look board', 13: 'read 2' };
+export const DEMO_CMD = { 0: '', 1: 'north', 2: 'northeast', 3: '', 4: 'south', 5: '', 6: 'list', 8: '', 9: '', 10: '', 11: 'i', 12: 'look board', 13: 'read 2', 15: '' };
